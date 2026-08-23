@@ -44,8 +44,12 @@ dependencies = [
 firestore = [
     "google-cloud-firestore>=2.14.0",
 ]
+claude = [
+    "mcp>=1.0.0",
+]
 all = [
     "remagent[firestore]",
+    "remagent[claude]",
     "aiosqlite>=0.20.0",
     "rich>=13.7.0",
     "typer>=0.9.0",
@@ -59,6 +63,7 @@ dev = [
 
 [project.scripts]
 remagent = "remagent.cli:main"
+remagent-mcp = "remagent.integrations.claude_code:main"
 
 [project.urls]
 Homepage = "https://dreamengine.dev"

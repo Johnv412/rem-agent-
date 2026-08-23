@@ -49,6 +49,9 @@ RemAgent mimics mammalian memory consolidation:
 # Standard installation with Gemini & SQLite
 pip install remagent
 
+# Claude Code terminal & IDE integration (MCP Server + Hooks)
+pip install "remagent[claude]"
+
 # Enterprise cloud installation with Google Cloud Firestore
 pip install "remagent[firestore]"
 ```
@@ -133,9 +136,66 @@ tool_definition = tool.get_tool_schema()
 
 ---
 
+## 🧠 Claude Code Integration
+
+RemAgent provides native, zero-friction support for **Claude Code** (Anthropic's agentic CLI tool). Developers running Claude Code in their terminals gain autonomous zero-vector memory, deterministic prompt injections, and background REM sleep consolidation across sessions.
+
+### 2-Step Setup
+
+```bash
+# 1. Install RemAgent with Claude MCP support
+pip install "remagent[claude]"
+
+# 2. Automatically scaffold .claude/settings.json and executable lifecycle hooks
+remagent init-claude
+```
+
+### Claude Code MCP Configuration
+
+The `remagent init-claude` command configures `.claude/settings.json` with the RemAgent MCP server and lifecycle hooks:
+
+```json
+{
+  "mcpServers": {
+    "remagent": {
+      "command": "remagent-mcp",
+      "args": []
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "remagent recall --format injection"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "remagent dream --agent claude_code"
+      }
+    ]
+  }
+}
+```
+
+### Exposed MCP Tools
+
+* **`remagent_recall`**: Recalls active entity facts and prioritized operational directives filtered to the prompt token budget.
+* **`remagent_log`**: Appends raw developer or agent interaction turns to the unconsolidated buffer.
+* **`remagent_dream`**: Triggers an immediate REM sleep consolidation pass to extract facts, resolve contradictions, and prune noise.
+
+---
+
 ## 🛠️ CLI Usage
 
 ```bash
+# Scaffold Claude Code hooks and settings in current repository
+remagent init-claude
+
+# Recall consolidated memory context for prompt injection
+remagent recall --format injection
+
 # Trigger an immediate REM consolidation pass on your database
 remagent dream --db my_agent_memory.db
 

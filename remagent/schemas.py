@@ -3,7 +3,7 @@ Pydantic schemas for the RemAgent autonomous zero-vector memory framework.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 import uuid
 
@@ -26,7 +26,7 @@ class Fact(BaseModel):
     attribute: str = Field(..., description="Specific property or relation (e.g., 'primary_language', 'auth_strategy')")
     value: Any = Field(..., description="Current ground-truth value (e.g., 'TypeScript', 'OAuth 2.0')")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score of the synthesized fact (0.0 - 1.0)")
-    timestamp: str = Field(default_factory=current_utc_iso, description="ISO timestamp when fact was synthesized")
+    timestamp: Union[str, float] = Field(default_factory=current_utc_iso, description="ISO timestamp or unix epoch when fact was synthesized")
     source_turn_ids: List[str] = Field(default_factory=list, description="IDs of raw turns providing evidence for this fact")
     superseded_by: Optional[str] = Field(default=None, description="Fact ID that invalidated/superseded this record")
     is_active: bool = Field(default=True, description="Whether this fact is currently active or historically superseded")
@@ -75,7 +75,7 @@ class RawTurnLog(BaseModel):
     content: str = Field(..., description="Raw text content or conversational message")
     tool_calls: Optional[List[Dict[str, Any]]] = Field(default=None, description="Tool execution requests or outputs")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary context metadata (tokens, latency, etc.)")
-    timestamp: str = Field(default_factory=current_utc_iso, description="Turn recording timestamp")
+    timestamp: Union[str, float] = Field(default_factory=current_utc_iso, description="Turn recording timestamp")
     is_consolidated: bool = Field(default=False, description="Whether this turn has been processed by a dream cycle")
 
 
@@ -92,7 +92,7 @@ class DreamConsolidationResult(BaseModel):
     pruned_noise_reasons: List[str] = Field(default_factory=list, description="Summaries of pruned noise classes")
     reasoning_summary: str = Field(..., description="Cognitive summary of what was learned and pruned during REM sleep")
     consolidated_turn_ids: List[str] = Field(default_factory=list, description="IDs of raw turns processed and archived")
-    timestamp: str = Field(default_factory=current_utc_iso, description="Consolidation execution timestamp")
+    timestamp: Union[str, float] = Field(default_factory=current_utc_iso, description="Consolidation execution timestamp")
     estimated_token_savings: int = Field(default=0, description="Estimated prompt token overhead eliminated vs raw history")
 
 

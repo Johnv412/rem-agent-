@@ -23,8 +23,8 @@ class SQLiteStorageAdapter(StorageAdapter):
     Uses standard library sqlite3 wrapped in asynchronous worker threads.
     """
 
-    def __init__(self, db_path: str = "remagent_memory.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = "remagent_memory.db", database_path: Optional[str] = None):
+        self.db_path = database_path if database_path is not None else db_path
         self._lock = asyncio.Lock()
 
     def _get_connection(self) -> sqlite3.Connection:

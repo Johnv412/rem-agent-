@@ -138,6 +138,7 @@ class DreamSynthesizer:
 
         existing_facts_str = json.dumps([f.model_dump() for f in existing_profile.facts if f.is_active], indent=2)
         existing_rules_str = json.dumps([r.model_dump() for r in existing_profile.rules if r.is_active], indent=2)
+        turns_block = "\n".join(turn_history_str)
 
         user_prompt = f"""
 ### EXISTING CONSOLIDATED KNOWLEDGE GRAPH (ACTIVE FACTS):
@@ -147,7 +148,7 @@ class DreamSynthesizer:
 {existing_rules_str}
 
 ### UNCONSOLIDATED RAW EPISODIC TURNS TO CONSOLIDATE:
-{"\n".join(turn_history_str)}
+{turns_block}
 
 Execute the REM sleep consolidation cycle now:
 1. Prune all ephemeral noise & pleasantries.

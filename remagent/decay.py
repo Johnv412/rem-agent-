@@ -6,8 +6,25 @@ ensuring multi-month agent operation remains lean and pristine without manual cl
 
 import math
 import time
-from typing import List, Tuple
+from datetime import datetime
+from typing import List, Tuple, Union
 from remagent.schemas import Fact, MemoryProfile
+
+
+def _parse_timestamp(ts: Union[str, float, int]) -> float:
+    if isinstance(ts, (int, float)):
+        return float(ts)
+    if isinstance(ts, str):
+        try:
+            return float(ts)
+        except ValueError:
+            pass
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            return dt.timestamp()
+        except Exception:
+            pass
+    return time.time()
 
 
 class MemoryDecayEngine:
@@ -44,7 +61,7 @@ class MemoryDecayEngine:
                 active_facts.append(fact)
                 continue
 
-            delta_t = max(0.0, now - fact.timestamp)
+            delta_t = max(0.0, now - _parse_timestamp(fact.timestamp))
             decayed_conf = fact.confidence * math.exp(-decay_constant * delta_t)
 
             if decayed_conf < self.min_confidence_floor:
