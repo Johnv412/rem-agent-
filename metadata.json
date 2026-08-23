@@ -1,0 +1,6 @@
+{
+  "name": "RemAgent",
+  "description": "Zero-vector autonomous memory framework for AI agents powered by Gemini and biological sleep/REM consolidation principles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

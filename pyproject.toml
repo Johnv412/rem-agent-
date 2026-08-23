@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "remagent"
+version = "1.0.0"
+description = "Autonomous Zero-Vector Memory Framework for AI Agents powered by Google Gemini & Biological REM Consolidation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "RemAgent Core Team", email = "architect@dreamengine.dev" }
+]
+keywords = [
+    "ai-agents",
+    "memory",
+    "zero-vector",
+    "gemini",
+    "cognitive-architecture",
+    "hermes-agent",
+    "rag-alternative",
+    "llm-memory",
+    "autonomous-agents"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "google-genai>=2.4.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "typing-extensions>=4.10.0",
+]
+
+[project.optional-dependencies]
+firestore = [
+    "google-cloud-firestore>=2.14.0",
+]
+all = [
+    "remagent[firestore]",
+    "aiosqlite>=0.20.0",
+    "rich>=13.7.0",
+    "typer>=0.9.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+]
+
+[project.scripts]
+remagent = "remagent.cli:main"
+
+[project.urls]
+Homepage = "https://dreamengine.dev"
+Repository = "https://github.com/remagent/remagent"
+Documentation = "https://remagent.dev"
