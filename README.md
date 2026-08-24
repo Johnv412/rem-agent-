@@ -45,15 +45,20 @@ RemAgent mimics mammalian memory consolidation:
 
 ## 📦 Installation
 
+> **Note:** RemAgent is not yet published on PyPI. Install from source:
+
 ```bash
+git clone https://github.com/Johnv412/rem-agent-.git
+cd rem-agent-
+
 # Standard installation with Gemini & SQLite
-pip install remagent
+pip install -e .
 
 # Claude Code terminal & IDE integration (MCP Server + Hooks)
-pip install "remagent[claude]"
+pip install -e ".[claude]"
 
 # Enterprise cloud installation with Google Cloud Firestore
-pip install "remagent[firestore]"
+pip install -e ".[firestore]"
 ```
 
 Set your Gemini API key:
@@ -143,8 +148,8 @@ RemAgent provides native, zero-friction support for **Claude Code** (Anthropic's
 ### 2-Step Setup
 
 ```bash
-# 1. Install RemAgent with Claude MCP support
-pip install "remagent[claude]"
+# 1. Install RemAgent with Claude MCP support (from a clone of this repo — see Installation)
+pip install -e ".[claude]"
 
 # 2. Automatically scaffold .claude/settings.json and executable lifecycle hooks
 remagent init-claude
