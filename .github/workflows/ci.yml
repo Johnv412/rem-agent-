@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install package with claude extra
-        run: pip install -e ".[claude]"
+        run: pip install -e ".[claude,test]"
       - name: Run test suite
         run: python -m pytest tests/ -q
   web:
