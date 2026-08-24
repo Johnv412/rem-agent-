@@ -5,6 +5,8 @@ Covers Schemas, SQLite Storage, Governor, Decay, and Daemon Logic.
 
 import asyncio
 import os
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -146,6 +148,47 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         # After 2 half-lives, 0.5 * 0.5 * 0.5 = 0.125 < 0.3 floor -> pruned
         self.assertEqual(len(pruned), 1)
         self.assertFalse(updated_profile.facts[0].is_active)
+
+    def _run_decay_cli(self, agent: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                f"import sys; sys.argv = ['remagent', 'decay', '--db', {self.db_path!r}, "
+                f"'--agent', {agent!r}, '--half-life-days', '1.0', '--floor', '0.3']; "
+                "from remagent.cli import main; main()",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    async def test_decay_cli_happy_path_persists(self):
+        stale = Fact(
+            id="f_stale", entity="Temp", attribute="scratch", value="old",
+            confidence=0.5, timestamp=time.time() - (86400 * 2),
+        )
+        durable = Fact(
+            id="f_durable", entity="Arch", attribute="db", value="PostgreSQL",
+            confidence=1.0, timestamp=time.time() - (86400 * 2),
+        )
+        await self.storage.save_memory_profile(
+            MemoryProfile(agent_id="decay_agent", facts=[stale, durable], rules=[])
+        )
+
+        proc = self._run_decay_cli("decay_agent")
+        self.assertEqual(proc.returncode, 0, msg=f"stderr: {proc.stderr}")
+        self.assertIn("Decay pass complete", proc.stdout)
+
+        loaded = await self.storage.load_memory_profile("decay_agent")
+        by_id = {f.id: f for f in loaded.facts}
+        self.assertFalse(by_id["f_stale"].is_active, "decayed fact must be persisted as inactive")
+        self.assertTrue(by_id["f_durable"].is_active, "confidence-1.0 facts never decay")
+
+    async def test_decay_cli_missing_profile_fails_nonzero(self):
+        proc = self._run_decay_cli("ghost_agent")
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("FAILED", proc.stderr)
 
 
 if __name__ == "__main__":

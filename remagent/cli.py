@@ -7,6 +7,7 @@ import asyncio
 import json
 import sys
 from remagent.daemon import ConsolidationBusyError, DreamDaemon
+from remagent.decay import MemoryDecayEngine
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
@@ -45,6 +46,13 @@ async def run_cli():
     log_parser.add_argument("--content", required=True, help="Turn message content")
     log_parser.add_argument("--session", default="default_session", help="Session ID")
     log_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+
+    # Command: decay
+    decay_parser = subparsers.add_parser("decay", help="Apply Ebbinghaus temporal decay to stored facts")
+    decay_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+    decay_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    decay_parser.add_argument("--half-life-days", type=float, default=30.0, help="Confidence half-life in days")
+    decay_parser.add_argument("--floor", type=float, default=0.20, help="Confidence floor below which facts are deactivated")
 
     # Command: init-claude
     init_claude_parser = subparsers.add_parser("init-claude", help="Scaffold Claude Code hooks and settings.json")
@@ -138,6 +146,34 @@ async def run_cli():
                     print(injection)
                 else:
                     print("[No active memory facts or rules found]")
+
+        elif args.command == "decay":
+            try:
+                profile = await storage.load_memory_profile(agent_id=args.agent)
+                if not profile.facts and not profile.rules and profile.last_dream_at is None:
+                    print(
+                        f"❌ FAILED: no memory profile found for agent '{args.agent}' in {args.db}.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                engine = MemoryDecayEngine(
+                    half_life_days=args.half_life_days,
+                    min_confidence_floor=args.floor,
+                )
+                updated_profile, pruned = engine.apply_decay(profile)
+                # Persist only after a fully successful decay pass.
+                await storage.save_memory_profile(updated_profile)
+            except Exception as exc:
+                print(f"❌ FAILED: decay pass did not complete: {exc}", file=sys.stderr)
+                print("   No changes were persisted.", file=sys.stderr)
+                sys.exit(1)
+            active_count = len([f for f in updated_profile.facts if f.is_active])
+            print(f"🍂 [RemAgent] Decay pass complete for agent '{args.agent}'.")
+            print(f"   - Half-life: {args.half_life_days} days | Confidence floor: {args.floor}")
+            print(f"   - Facts deactivated this pass: {len(pruned)}")
+            for f in pruned:
+                print(f"     • {f.entity}.{f.attribute} (confidence decayed below floor)")
+            print(f"   - Active facts remaining: {active_count}")
 
         elif args.command == "log":
             turn = RawTurnLog(session_id=args.session, role=args.role, content=args.content)

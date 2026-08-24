@@ -52,7 +52,7 @@ list them when everything else is done.
   exceed `max_tokens` and asserts the output either fits the budget or
   carries an explicit overflow signal; pytest green.
 
-- [ ] **T4. Wire the decay engine in.**
+- [x] **T4. Wire the decay engine in.**
   `remagent/decay.py` is complete but dead code — nothing calls it. Add a
   `remagent decay` CLI subcommand (same `--db`/`--agent` flags) that
   applies decay to the stored profile and persists it, printing what was
