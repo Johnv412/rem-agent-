@@ -2,10 +2,9 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
@@ -324,6 +323,13 @@ app.post("/api/dream/consolidate", async (_req, res) => {
     });
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(503).json({
+      error: "GEMINI_API_KEY is not configured. Dream consolidation requires a live Gemini call; no state was modified.",
+      code: 503,
+    });
+  }
+
   isDreaming = true;
 
   try {
@@ -361,12 +367,8 @@ ${turnsContext}
 
 Analyze and consolidate now.`;
 
-    let synthesisOutput: any = null;
-
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
+    const ai = getAI();
+    const response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           contents: userPrompt,
           config: {
@@ -444,56 +446,11 @@ Analyze and consolidate now.`;
           },
         });
 
-        synthesisOutput = JSON.parse(response.text || "{}");
-      } catch (geminiError: any) {
-        console.warn("Gemini API call failed, falling back to deterministic consolidation engine:", geminiError?.message);
-      }
-    }
-
-    // High-fidelity fallback synthesis if API key is not yet set or in offline demo
-    if (!synthesisOutput || !synthesisOutput.reasoning_summary) {
-      synthesisOutput = {
-        added_facts: [
-          {
-            entity: "Architecture",
-            attribute: "event_broker",
-            value: "Kafka + Go",
-            confidence: 0.98,
-          },
-          {
-            entity: "Governance",
-            attribute: "pr_reviewers_required",
-            value: 2,
-            confidence: 1.0,
-          },
-        ],
-        updated_rules: [
-          {
-            category: "coding_standard",
-            rule: "Follow semantic versioning across all service packages",
-            rationale: "User mandate for team consistency and release hygiene",
-            priority: 2,
-          },
-          {
-            category: "operational_directive",
-            rule: "Require 2 peer approvals for any code merge",
-            rationale: "Strict compliance rule established in kickoff session",
-            priority: 1,
-          },
-        ],
-        contradictions: [
-          {
-            entity: "Architecture",
-            attribute: "primary_database",
-            prior_value: "SQLite (Prototyping)",
-            new_value: "PostgreSQL 16 / Cloud SQL",
-            resolution_reasoning: "User explicitly superseded initial prototype with Cloud SQL PostgreSQL production mandate.",
-          },
-        ],
-        pruned_noise_count: Math.max(1, unconsolidated.length - 2),
-        pruned_noise_categories: ["pleasantries", "chit_chat", "raw_benchmark_stdout"],
-        reasoning_summary: `Processed ${unconsolidated.length} turns. Extracted Go+Kafka event architecture, enforced PR review policy, pruned transient benchmark stdout and greetings, and resolved database choice contradiction.`,
-      };
+    // A failed or unparseable Gemini response must fail the request (handled
+    // by the outer catch -> HTTP 500). Never substitute fabricated results.
+    const synthesisOutput: any = JSON.parse(response.text || "null");
+    if (!synthesisOutput || typeof synthesisOutput.reasoning_summary !== "string") {
+      throw new Error("Gemini returned an empty or unparseable synthesis; no state was modified.");
     }
 
     const runId = `dream-${Date.now()}`;
@@ -530,6 +487,34 @@ Analyze and consolidate now.`;
       })
     );
     simulatedFacts.push(...newlyAddedFacts);
+
+    // 2b. Materialize replacement facts for contradictions resolved without a
+    // matching entry in added_facts — superseding a fact must never leave the
+    // entity/attribute without an active value.
+    if (Array.isArray(synthesisOutput.contradictions)) {
+      for (const [idx, contra] of synthesisOutput.contradictions.entries()) {
+        const hasActive = simulatedFacts.some(
+          (f) =>
+            f.is_active &&
+            f.entity.toLowerCase() === (contra.entity || "").toLowerCase() &&
+            f.attribute.toLowerCase() === (contra.attribute || "").toLowerCase()
+        );
+        if (!hasActive && contra.entity && contra.attribute) {
+          const replacement: Fact = {
+            id: `fact-${Date.now()}-contra-${idx}`,
+            entity: contra.entity,
+            attribute: contra.attribute,
+            value: contra.new_value,
+            confidence: 1.0,
+            timestamp: nowIso,
+            source_turn_ids: turnIds,
+            is_active: true,
+          };
+          simulatedFacts.push(replacement);
+          newlyAddedFacts.push(replacement);
+        }
+      }
+    }
 
     // 3. Add or update operational rules
     const newlyUpdatedRules: OperationalRule[] = [];
@@ -634,27 +619,32 @@ KNOWLEDGE GRAPH FACTS:
 ${activeFacts.map((f) => `- ${f.entity}.${f.attribute} = ${f.value} (conf: ${f.confidence})`).join("\n") || "None"}
 [END MEMORY CONTEXT]`;
 
-  let agentReply = "";
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(503).json({
+      error: "GEMINI_API_KEY is not configured. Agent chat requires a live Gemini call.",
+      code: 503,
+    });
+  }
 
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `You are RemAgent, an autonomous AI assistant that demonstrates zero-vector biological memory consolidation.
+  let agentReply = "";
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `You are RemAgent, an autonomous AI assistant that demonstrates zero-vector biological memory consolidation.
 Answer the user's prompt accurately, adhering strictly to the operational rules and active facts provided in the memory context.
 If the memory has contradictory historical data, strictly respect the current active state.
 
 ${memoryContextText}
 
 User message: ${message}`,
-      });
-      agentReply = response.text || "I have received your message and updated my memory queue.";
-    } catch (e: any) {
-      agentReply = `[RemAgent Response]: I noted your request. Using our zero-vector memory profile (${activeFacts.length} active facts, ${activeRules.length} rules), I'll adhere to our established architecture and standards.`;
-    }
-  } else {
-    agentReply = `[RemAgent Response (Zero-Vector Recall)]: I recalled ${activeFacts.length} facts and ${activeRules.length} active directives. I will ensure our stack constraints and policies are strictly enforced!`;
+    });
+    agentReply = (response.text || "").trim();
+  } catch (e: any) {
+    return res.status(502).json({ error: `Gemini call failed: ${e?.message || e}`, code: 502 });
+  }
+  if (!agentReply) {
+    return res.status(502).json({ error: "Gemini returned an empty reply.", code: 502 });
   }
 
   // 3. Log assistant turn
@@ -725,7 +715,7 @@ app.get("/api/files/source", (_req, res) => {
       try {
         content = fs.readFileSync(f.path, "utf-8");
       } catch {
-        content = "# File content loading...";
+        content = `# ERROR: ${f.name} could not be read on the server.`;
       }
     }
     return {
@@ -743,6 +733,8 @@ app.get("/api/files/source", (_req, res) => {
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    // Dev-only dynamic import so the production bundle never loads vite.
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

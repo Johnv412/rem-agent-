@@ -53,9 +53,13 @@ export default function App() {
       });
       if (res.ok) {
         await fetchState();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showNotification(data.error || "Agent chat failed.", "warning");
       }
     } catch (e: any) {
       console.error("Failed to send message:", e);
+      showNotification("Agent chat failed: could not reach the server.", "warning");
     }
   };
 
