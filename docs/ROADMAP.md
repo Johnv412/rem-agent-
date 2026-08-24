@@ -60,7 +60,7 @@ list them when everything else is done.
   *Done when:* tests cover the happy path and a failure path (e.g. missing
   profile); pytest green.
 
-- [ ] **T5. Mocked-Gemini success-path tests.**
+- [x] **T5. Mocked-Gemini success-path tests.**
   The suite proves failures fail but the success path is only proven by
   live runs. Stub `generate_content` to return typed JSON and test:
   parsing into `DreamSynthesisOutput`, fact/rule/contradiction mapping,
