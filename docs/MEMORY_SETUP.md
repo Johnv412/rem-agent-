@@ -59,7 +59,7 @@ verification listed per task.
   design.
   *Done when:* scaffold files verified on disk with correct paths.
 
-- [ ] **M5. Smoke test — raw output, not a summary.**
+- [x] **M5. Smoke test — raw output, not a summary.**
   Simulate the real pipeline end to end: pipe a genuine hook-JSON prompt
   (a real fact about this project) through the UserPromptSubmit hook
   script → run the exact Stop-hook dream command (live Gemini) → run the
