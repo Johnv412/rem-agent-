@@ -88,7 +88,7 @@ list them when everything else is done.
   *Done when:* `pip install -e ".[all]"` succeeds; metadata matches
   reality; pytest green.
 
-- [ ] **T8. Build and validate the wheel (NO upload).**
+- [x] **T8. Build and validate the wheel (NO upload).**
   `python3 -m build` then `twine check dist/*` (install both tools if
   needed). Artifacts stay local/gitignored.
   *Done when:* twine check passes on sdist and wheel.
