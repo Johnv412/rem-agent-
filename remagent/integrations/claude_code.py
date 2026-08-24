@@ -97,7 +97,12 @@ def create_claude_mcp_server(
     ) -> str:
         """Log a conversational or tool execution turn into the episodic buffer."""
         valid_roles = ["user", "assistant", "system", "tool"]
-        normalized_role = role.lower() if role.lower() in valid_roles else "user"
+        normalized_role = role.lower()
+        if normalized_role not in valid_roles:
+            # Never silently coerce bad input into a "logged" success.
+            raise ValueError(
+                f"Invalid role {role!r}; must be one of {valid_roles}. The turn was NOT logged."
+            )
 
         storage = SQLiteStorageAdapter(db_path=db_path)
         await storage.initialize()

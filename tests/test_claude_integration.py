@@ -12,6 +12,10 @@ import time
 import unittest
 from pathlib import Path
 
+from unittest import mock
+
+from remagent.daemon import DreamDaemon
+from remagent.engine.synthesizer import DreamSynthesisError
 from remagent.schemas import Fact, OperationalRule, RawTurnLog, MemoryProfile
 from remagent.storage.sqlite import SQLiteStorageAdapter
 from remagent.integrations.claude_code import create_claude_mcp_server
@@ -128,6 +132,38 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(dream_result.is_error)
         data = json.loads(dream_result.content[0].text)
         self.assertEqual(data["status"], "skipped")
+
+    async def test_mcp_dream_synthesis_failure_surfaces_as_error(self):
+        """A failed dream must surface as an MCP tool error (ToolError at the
+        framework boundary), never as a success payload."""
+        from mcp.server.mcpserver.exceptions import ToolError
+
+        server = create_claude_mcp_server(
+            name="test_remagent", default_db_path=self.db_path, default_agent_id="a"
+        )
+        with mock.patch.object(
+            DreamDaemon, "consolidate_now",
+            side_effect=DreamSynthesisError("Gemini dream synthesis failed: boom"),
+        ):
+            with self.assertRaises(ToolError) as ctx:
+                await server.call_tool("remagent_dream", {"db_path": self.db_path})
+        self.assertIn("boom", str(ctx.exception))
+        self.assertNotIn("up to date", str(ctx.exception))
+
+    async def test_mcp_log_rejects_invalid_role(self):
+        """Invalid roles must error, not be silently coerced into a logged turn."""
+        from mcp.server.mcpserver.exceptions import ToolError
+
+        server = create_claude_mcp_server(
+            name="test_remagent", default_db_path=self.db_path, default_agent_id="a"
+        )
+        with self.assertRaises(ToolError):
+            await server.call_tool(
+                "remagent_log",
+                {"role": "wizard", "content": "should not be stored", "db_path": self.db_path},
+            )
+        turns = await self.storage.get_unconsolidated_turns()
+        self.assertEqual(turns, [], "rejected turn must not be persisted")
 
     def test_claude_hooks_and_settings_generation(self):
         target_dir = os.path.join(self.temp_dir, "workspace")

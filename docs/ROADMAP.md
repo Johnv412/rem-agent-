@@ -95,7 +95,7 @@ list them when everything else is done.
 
 ## Phase 3 — Claude Code integration proof
 
-- [ ] **T9. Verify the MCP integration end-to-end and audit it for fake
+- [x] **T9. Verify the MCP integration end-to-end and audit it for fake
   success.**
   Install the `[claude]` extra (the `mcp` dependency is not currently
   installed). Audit every tool handler in
