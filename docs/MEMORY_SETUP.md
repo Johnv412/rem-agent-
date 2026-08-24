@@ -35,7 +35,7 @@ verification listed per task.
   invalid JSON → exit 1 and nothing persisted.
   *Done when:* pytest green including the new tests.
 
-- [ ] **M2. Machine prereqs in ~/.zshrc.**
+- [x] **M2. Machine prereqs in ~/.zshrc.**
   Append a clearly-marked block: put
   `/Library/Frameworks/Python.framework/Versions/3.11/bin` on PATH, and
   source `~/.remagent/env` (file mode 0600 holding
