@@ -117,13 +117,18 @@ list them when everything else is done.
   it as a future idea in this file's Icebox instead.)
   *Done when:* badge renders; `npm run lint && npm run build` green.
 
-- [ ] **T11. GitHub Actions CI.**
-  `.github/workflows/ci.yml`: on push/PR run (a) Python 3.11:
-  `pip install -e ".[claude]" && python -m pytest tests/ -q`, (b) Node 22:
-  `npm ci && npm run lint && npm run build`. No secrets required; the
-  suite must stay green without `GEMINI_API_KEY`.
-  *Done when:* workflow file is valid (yaml parses, actions pinned to
-  major versions) and the same commands pass locally; committed & pushed.
+- [ ] **[GATED] T11. GitHub Actions CI — BLOCKED on git credentials.**
+  The workflow is written and validated: `.github/workflows/ci.yml`
+  exists locally (untracked), YAML parses, and both CI jobs' exact
+  commands pass locally (pytest 25+1 skip; tsc + vite build green).
+  **But the push was rejected**: this machine's git credential is an
+  OAuth app token without the `workflow` scope, and GitHub refuses any
+  push that creates/updates workflow files with it. The commit was
+  unwound locally so other pushes aren't blocked.
+  *User action to finish:* grant the credential the workflow scope
+  (e.g. `gh auth login` choosing the workflow scope, or a PAT with
+  `workflow`), then `git add .github/workflows/ci.yml && git commit &&
+  git push` — or add the file via the GitHub web UI.
 
 ## Phase 5 — Finish-line verification
 
