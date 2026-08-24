@@ -29,7 +29,7 @@ list them when everything else is done.
   *Done when:* a supersession test asserts `old.superseded_by == new.id`;
   pytest green.
 
-- [ ] **T2. Distinguish "busy" from "up to date" in `consolidate_now()`.**
+- [x] **T2. Distinguish "busy" from "up to date" in `consolidate_now()`.**
   (Audit finding.) `daemon.consolidate_now()` returns `None` both when
   there are no unconsolidated turns AND when the lock is held (dream in
   progress), so callers report "memory is fully consolidated" while turns

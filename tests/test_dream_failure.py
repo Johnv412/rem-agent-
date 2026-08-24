@@ -12,14 +12,17 @@ that a failure looks like a failure. The invariants pinned here:
   - The daemon refuses to persist any result marked is_fallback / error.
 """
 
+import json
 import os
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
-from remagent.daemon import DreamDaemon
+from remagent.daemon import ConsolidationBusyError, DreamDaemon
+from remagent.integrations.claude_code import create_claude_mcp_server
 from remagent.engine.synthesizer import DreamSynthesizer, DreamSynthesisError
 from remagent.schemas import (
     ContradictionResolution,
@@ -162,6 +165,41 @@ class TestDreamFailurePaths(unittest.IsolatedAsyncioTestCase):
 
         remaining = await self.storage.get_unconsolidated_turns()
         self.assertEqual(len(remaining), 0, "successful dream marks turns consolidated")
+
+    # ------------------------------------------------------------------
+    # Busy is not "up to date": lock contention must be distinguishable
+    # ------------------------------------------------------------------
+
+    async def test_consolidate_now_busy_raises_and_preserves_queue(self):
+        await self.storage.save_turn(RawTurnLog(role="user", content="x"))
+        stub_result = DreamConsolidationResult(
+            run_id=generate_uuid(), reasoning_summary="stub", timestamp=current_utc_iso()
+        )
+        daemon = DreamDaemon(storage=self.storage, synthesizer=_StubSynthesizer(stub_result), agent_id="a")
+
+        await daemon._lock.acquire()
+        try:
+            with self.assertRaises(ConsolidationBusyError):
+                await daemon.consolidate_now()
+        finally:
+            daemon._lock.release()
+
+        remaining = await self.storage.get_unconsolidated_turns()
+        self.assertEqual(len(remaining), 1, "busy abort must leave turns queued")
+
+    async def test_mcp_dream_reports_busy_not_up_to_date(self):
+        server = create_claude_mcp_server(
+            name="test_remagent", default_db_path=self.db_path, default_agent_id="a"
+        )
+        with mock.patch.object(
+            DreamDaemon, "consolidate_now",
+            side_effect=ConsolidationBusyError("cycle already in progress"),
+        ):
+            result = await server.call_tool("remagent_dream", {"db_path": self.db_path})
+        self.assertFalse(result.is_error)
+        data = json.loads(result.content[0].text)
+        self.assertEqual(data["status"], "busy")
+        self.assertNotIn("up to date", data.get("message", ""))
 
     # ------------------------------------------------------------------
     # Daemon: refuses to persist fallback / error results

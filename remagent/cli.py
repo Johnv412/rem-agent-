@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
-from remagent.daemon import DreamDaemon
+from remagent.daemon import ConsolidationBusyError, DreamDaemon
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
@@ -85,6 +85,9 @@ async def run_cli():
             daemon = DreamDaemon(storage=storage, synthesizer=synthesizer, agent_id=args.agent)
             try:
                 result = await daemon.consolidate_now()
+            except ConsolidationBusyError as exc:
+                print(f"⏳ BUSY: {exc}", file=sys.stderr)
+                sys.exit(2)
             except Exception as exc:
                 print(f"❌ FAILED: REM consolidation did not complete: {exc}", file=sys.stderr)
                 print("   No facts were written; unconsolidated turns remain queued for retry.", file=sys.stderr)

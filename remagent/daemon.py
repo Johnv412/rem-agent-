@@ -22,6 +22,14 @@ from remagent.engine.synthesizer import DreamSynthesizer
 logger = logging.getLogger("remagent.daemon")
 
 
+class ConsolidationBusyError(RuntimeError):
+    """
+    Raised when a consolidation cycle is already in progress. This is NOT
+    "memory is up to date": unconsolidated turns remain queued and untouched.
+    Callers must report busy as busy and retry after the running cycle ends.
+    """
+
+
 class DreamDaemon:
     """
     Background daemon that runs autonomous REM consolidation passes
@@ -104,18 +112,26 @@ class DreamDaemon:
 
             except asyncio.CancelledError:
                 break
+            except ConsolidationBusyError:
+                logger.debug("Skipped scheduled consolidation: a cycle is already in progress.")
             except Exception as e:
                 logger.error(f"Error in DreamDaemon loop: {e}", exc_info=True)
 
     async def consolidate_now(self) -> Optional[DreamConsolidationResult]:
         """
         Forces an immediate REM consolidation pass regardless of idle timer.
-        """
-        async with self._lock:
-            if self._is_dreaming:
-                logger.warning("Consolidation cycle is already in progress.")
-                return None
 
+        Returns None ONLY when there are no unconsolidated turns (memory is
+        genuinely up to date). Raises ConsolidationBusyError when another
+        cycle is already running — turns remain queued in that case.
+        """
+        if self._is_dreaming or self._lock.locked():
+            raise ConsolidationBusyError(
+                "A REM consolidation cycle is already in progress; "
+                "unconsolidated turns remain queued. Retry shortly."
+            )
+
+        async with self._lock:
             self._is_dreaming = True
             try:
                 # 1. Fetch pending turns

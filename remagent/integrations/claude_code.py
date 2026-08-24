@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from remagent.schemas import RawTurnLog, MemoryProfile, Fact, OperationalRule
 from remagent.storage.sqlite import SQLiteStorageAdapter
 from remagent.engine.synthesizer import DreamSynthesizer
-from remagent.daemon import DreamDaemon
+from remagent.daemon import ConsolidationBusyError, DreamDaemon
 from remagent.governor import TokenBudgetGovernor
 
 try:
@@ -136,7 +136,11 @@ def create_claude_mcp_server(
         try:
             synthesizer = DreamSynthesizer()
             daemon = DreamDaemon(storage=storage, synthesizer=synthesizer, agent_id=agent_id)
-            result = await daemon.consolidate_now()
+            try:
+                result = await daemon.consolidate_now()
+            except ConsolidationBusyError as exc:
+                # Busy is NOT "up to date": turns remain queued for retry.
+                return json.dumps({"status": "busy", "message": str(exc)}, indent=2)
             if result:
                 response_data = {
                     "status": "consolidated",
