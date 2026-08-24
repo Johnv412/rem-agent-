@@ -4,11 +4,14 @@ Implements exponential Ebbinghaus retention decay for low-confidence or unrefere
 ensuring multi-month agent operation remains lean and pristine without manual cleanup.
 """
 
+import logging
 import math
 import time
 from datetime import datetime
 from typing import List, Tuple, Union
 from remagent.schemas import Fact, MemoryProfile
+
+logger = logging.getLogger("remagent.decay")
 
 
 def _parse_timestamp(ts: Union[str, float, int]) -> float:
@@ -24,6 +27,9 @@ def _parse_timestamp(ts: Union[str, float, int]) -> float:
             return dt.timestamp()
         except Exception:
             pass
+    logger.warning(
+        "Unparseable fact timestamp %r; treating the fact as fresh, so no decay will be applied to it.", ts
+    )
     return time.time()
 
 

@@ -94,6 +94,8 @@ class DreamConsolidationResult(BaseModel):
     consolidated_turn_ids: List[str] = Field(default_factory=list, description="IDs of raw turns processed and archived")
     timestamp: Union[str, float] = Field(default_factory=current_utc_iso, description="Consolidation execution timestamp")
     estimated_token_savings: int = Field(default=0, description="Estimated prompt token overhead eliminated vs raw history")
+    is_fallback: bool = Field(default=False, description="True if this result was NOT produced by a real, successful synthesis call; such results must never be persisted")
+    error: Optional[str] = Field(default=None, description="Error message when the consolidation run failed; None on success")
 
 
 class MemoryProfile(BaseModel):

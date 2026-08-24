@@ -83,7 +83,12 @@ async def run_cli():
             print("🧠 [RemAgent] Initiating REM Sleep Consolidation Cycle...")
             synthesizer = DreamSynthesizer()
             daemon = DreamDaemon(storage=storage, synthesizer=synthesizer, agent_id=args.agent)
-            result = await daemon.consolidate_now()
+            try:
+                result = await daemon.consolidate_now()
+            except Exception as exc:
+                print(f"❌ FAILED: REM consolidation did not complete: {exc}", file=sys.stderr)
+                print("   No facts were written; unconsolidated turns remain queued for retry.", file=sys.stderr)
+                sys.exit(1)
             if result:
                 print(f"✨ Consolidation Complete! Run ID: {result.run_id}")
                 print(f"   - Added Facts: {len(result.added_facts)}")

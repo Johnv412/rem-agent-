@@ -5,8 +5,9 @@ entity facts, resolves contradictions, and updates operational heuristics withou
 """
 
 import json
+import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from remagent.schemas import (
@@ -21,17 +22,62 @@ from remagent.schemas import (
 )
 
 
+logger = logging.getLogger("remagent.synthesizer")
+
+RULE_CATEGORIES = [
+    "user_preference",
+    "coding_standard",
+    "architecture_heuristic",
+    "operational_directive",
+    "domain_constraint",
+]
+
+
+class DreamSynthesisError(RuntimeError):
+    """
+    Raised when the Gemini consolidation call fails for any reason (missing API
+    key, transport error, schema rejection, unparseable response).
+    A failed dream must never look like a successful one: callers must let this
+    propagate and must not persist any state derived from the failed run.
+    """
+
+
+class SynthesizedFact(BaseModel):
+    """A single extracted fact, as returned by Gemini."""
+    entity: str = Field(..., description="Target entity, user, project, or domain object (e.g., 'User', 'Vendor')")
+    attribute: str = Field(..., description="Specific property or relation (e.g., 'price_per_unit', 'auth_strategy')")
+    value: str = Field(..., description="Current ground-truth value as a string (e.g., '$52/unit', 'OAuth 2.0')")
+    confidence: float = Field(default=1.0, description="Confidence score of the synthesized fact (0.0 - 1.0)")
+
+
+class SynthesizedRule(BaseModel):
+    """A single operational rule, as returned by Gemini."""
+    category: str = Field(..., description="One of: 'user_preference', 'coding_standard', 'architecture_heuristic', 'operational_directive', 'domain_constraint'")
+    rule: str = Field(..., description="Concise, actionable rule statement")
+    rationale: str = Field(default="Synthesized from user interactions", description="Reasoning or empirical turn context justifying this directive")
+    priority: int = Field(default=3, description="Priority weight (1 = critical/unbreakable, 5 = minor guideline)")
+
+
+class SynthesizedContradiction(BaseModel):
+    """A contradiction between a new observation and an existing fact, as returned by Gemini."""
+    entity: str = Field(..., description="Subject entity of the contradicted fact (must match the existing fact's entity exactly)")
+    attribute: str = Field(..., description="Subject attribute of the contradicted fact (must match the existing fact's attribute exactly)")
+    prior_value: str = Field(..., description="The outdated value being superseded")
+    new_value: str = Field(..., description="The new ground-truth value")
+    resolution_reasoning: str = Field(..., description="Reasoning why the new observation overrides the prior state")
+
+
 class DreamSynthesisOutput(BaseModel):
     """Internal Pydantic schema for Gemini structured JSON response."""
-    added_facts: List[Dict[str, Any]] = Field(
+    added_facts: List[SynthesizedFact] = Field(
         default_factory=list,
-        description="Discrete entity facts extracted (entity, attribute, value, confidence, rationale)"
+        description="Discrete entity facts extracted from the unconsolidated turns"
     )
-    updated_rules: List[Dict[str, Any]] = Field(
+    updated_rules: List[SynthesizedRule] = Field(
         default_factory=list,
-        description="Operational directives or preferences (category, rule, rationale, priority)"
+        description="Operational directives or preferences synthesized from the turns"
     )
-    contradictions: List[Dict[str, Any]] = Field(
+    contradictions: List[SynthesizedContradiction] = Field(
         default_factory=list,
         description="Contradictions resolved where new evidence supersedes prior facts"
     )
@@ -69,6 +115,7 @@ Unlike noisy, brittle Vector RAG (which blindly chunks text and suffers from sem
    - Carefully review the existing memory facts.
    - If a new turn contains a revised decision (e.g., user changed database from MySQL to PostgreSQL, or changed preferred style from functional to OOP), explicitly resolve the contradiction: the newer observation SUPERSEDES the older one.
    - State the reasoning why the new fact overrides the prior state.
+   - MANDATORY: every contradiction you report MUST be accompanied by an entry in added_facts carrying the same entity and attribute with the new ground-truth value. A contradiction entry alone does NOT store the new value — omitting the added_facts entry would erase the memory instead of updating it.
 
 4. OPERATIONAL DIRECTIVES & RULES:
    - Synthesize durable heuristics (e.g., "Always use TypeScript strict mode", "Do not modify port 3000", "Prefers async/await over raw promises").
@@ -125,6 +172,12 @@ class DreamSynthesizer:
                 estimated_token_savings=0,
             )
 
+        if not (self.api_key or os.environ.get("GOOGLE_API_KEY")):
+            raise DreamSynthesisError(
+                "GEMINI_API_KEY is not set; cannot run dream consolidation. "
+                "No memory was modified and unconsolidated turns remain queued."
+            )
+
         client = self._get_client()
 
         # Build turn log context
@@ -173,32 +226,8 @@ Execute the REM sleep consolidation cycle now:
             parsed = DreamSynthesisOutput(**response_data)
 
         except Exception as exc:
-            # Fallback cognitive parser in case of schema validation mismatch
-            # Attempt to parse raw JSON or provide a clean graceful synthesis
-            try:
-                raw_text = response.text if "response" in locals() and hasattr(response, "text") else ""
-                clean_json = raw_text.strip()
-                if clean_json.startswith("```json"):
-                    clean_json = clean_json.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json)
-                parsed = DreamSynthesisOutput(**data)
-            except Exception:
-                # Construct graceful fallback
-                parsed = DreamSynthesisOutput(
-                    added_facts=[
-                        {
-                            "entity": "Session",
-                            "attribute": "last_consolidated_turns_count",
-                            "value": len(unconsolidated_turns),
-                            "confidence": 0.9,
-                        }
-                    ],
-                    updated_rules=[],
-                    contradictions=[],
-                    pruned_noise_count=max(0, len(unconsolidated_turns) - 2),
-                    pruned_noise_categories=["conversational_chaff"],
-                    reasoning_summary=f"Fallback dream consolidation completed for {len(unconsolidated_turns)} turns.",
-                )
+            logger.error("Dream synthesis failed; no memory will be written: %s", exc, exc_info=True)
+            raise DreamSynthesisError(f"Gemini dream synthesis failed: {exc}") from exc
 
         # Map to domain entities
         turn_ids = [t.turn_id for t in unconsolidated_turns]
@@ -208,10 +237,10 @@ Execute the REM sleep consolidation cycle now:
         for f in parsed.added_facts:
             added_facts.append(
                 Fact(
-                    entity=str(f.get("entity", "Unknown")),
-                    attribute=str(f.get("attribute", "attribute")),
-                    value=f.get("value"),
-                    confidence=float(f.get("confidence", 1.0)),
+                    entity=f.entity,
+                    attribute=f.attribute,
+                    value=f.value,
+                    confidence=max(0.0, min(1.0, f.confidence)),
                     source_turn_ids=turn_ids,
                     is_active=True,
                 )
@@ -220,15 +249,13 @@ Execute the REM sleep consolidation cycle now:
         # Build OperationalRule objects
         updated_rules: List[OperationalRule] = []
         for r in parsed.updated_rules:
-            cat = r.get("category", "operational_directive")
-            if cat not in ["user_preference", "coding_standard", "architecture_heuristic", "operational_directive", "domain_constraint"]:
-                cat = "operational_directive"
+            cat = r.category if r.category in RULE_CATEGORIES else "operational_directive"
             updated_rules.append(
                 OperationalRule(
                     category=cat,
-                    rule=str(r.get("rule", "")),
-                    rationale=str(r.get("rationale", "Synthesized from user interactions")),
-                    priority=int(r.get("priority", 3)),
+                    rule=r.rule,
+                    rationale=r.rationale,
+                    priority=max(1, min(5, r.priority)),
                     is_active=True,
                 )
             )
@@ -238,12 +265,12 @@ Execute the REM sleep consolidation cycle now:
         for c in parsed.contradictions:
             contradiction_resolutions.append(
                 ContradictionResolution(
-                    prior_fact_id=c.get("prior_fact_id"),
-                    entity=str(c.get("entity", "")),
-                    attribute=str(c.get("attribute", "")),
-                    prior_value=c.get("prior_value"),
-                    new_value=c.get("new_value"),
-                    resolution_reasoning=str(c.get("resolution_reasoning", "Newer turn superseded older state.")),
+                    prior_fact_id=None,
+                    entity=c.entity,
+                    attribute=c.attribute,
+                    prior_value=c.prior_value,
+                    new_value=c.new_value,
+                    resolution_reasoning=c.resolution_reasoning,
                 )
             )
 

@@ -11,6 +11,7 @@ from typing import Callable, Coroutine, List, Optional
 from datetime import datetime, timezone
 
 from remagent.schemas import (
+    Fact,
     MemoryProfile,
     DreamConsolidationResult,
     current_utc_iso,
@@ -132,6 +133,16 @@ class DreamDaemon:
                     existing_profile=profile,
                 )
 
+                # A failed or fabricated synthesis must never be persisted:
+                # no facts, no profile update, and turns stay unconsolidated
+                # so they are reprocessed on the next dream cycle.
+                if result.is_fallback or result.error:
+                    raise RuntimeError(
+                        f"Dream synthesis returned a failure result "
+                        f"(is_fallback={result.is_fallback}, error={result.error}); "
+                        f"refusing to persist memory or mark turns consolidated."
+                    )
+
                 # 4. Apply Contradiction Invalidation
                 # If any contradiction was detected, mark prior facts inactive
                 for resolution in result.contradiction_resolutions:
@@ -147,6 +158,51 @@ class DreamDaemon:
                 # 5. Append new active facts
                 for new_fact in result.added_facts:
                     profile.facts.append(new_fact)
+
+                # 5b. Materialize replacement facts for contradictions the
+                # synthesizer resolved without emitting the new value in
+                # added_facts. The daemon must stay correct even when the
+                # model returns an unexpected shape: an update must never
+                # leave the entity/attribute without an active fact.
+                def _has_active_fact(entity: str, attribute: str) -> bool:
+                    return any(
+                        f.is_active
+                        and f.entity.lower() == entity.lower()
+                        and f.attribute.lower() == attribute.lower()
+                        for f in profile.facts
+                    )
+
+                for resolution in result.contradiction_resolutions:
+                    if not _has_active_fact(resolution.entity, resolution.attribute):
+                        logger.warning(
+                            f"Synthesizer resolved contradiction on "
+                            f"{resolution.entity}.{resolution.attribute} without emitting a "
+                            f"replacement in added_facts; materializing active fact from "
+                            f"new_value={resolution.new_value!r}."
+                        )
+                        replacement = Fact(
+                            entity=resolution.entity,
+                            attribute=resolution.attribute,
+                            value=resolution.new_value,
+                            confidence=1.0,
+                            source_turn_ids=list(result.consolidated_turn_ids),
+                            is_active=True,
+                        )
+                        profile.facts.append(replacement)
+                        result.added_facts.append(replacement)
+
+                # 5c. Invariant: after applying contradictions, every resolved
+                # entity/attribute must have an active fact. A deactivated fact
+                # with no active replacement means memory was erased, not
+                # updated — fail the run instead of committing that state.
+                for resolution in result.contradiction_resolutions:
+                    if not _has_active_fact(resolution.entity, resolution.attribute):
+                        raise RuntimeError(
+                            f"Memory-erasure invariant violated: "
+                            f"{resolution.entity}.{resolution.attribute} was superseded but has "
+                            f"no active replacement fact. Refusing to persist; turns remain "
+                            f"unconsolidated for retry."
+                        )
 
                 # 6. Update or append operational rules
                 existing_rule_map = {r.rule.lower(): r for r in profile.rules}
