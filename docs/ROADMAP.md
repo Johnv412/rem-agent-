@@ -19,7 +19,7 @@ list them when everything else is done.
 
 ## Phase 1 — Engine correctness
 
-- [ ] **T1. `superseded_by` stores the replacing fact's ID, not the run_id.**
+- [x] **T1. `superseded_by` stores the replacing fact's ID, not the run_id.**
   The Fact schema docstring promises "Fact ID that invalidated/superseded
   this record" but `daemon.consolidate_now()` writes the dream run_id.
   Store the ID of the replacing fact (the added/materialized fact for the

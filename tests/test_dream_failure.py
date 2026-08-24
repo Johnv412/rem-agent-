@@ -153,9 +153,12 @@ class TestDreamFailurePaths(unittest.IsolatedAsyncioTestCase):
         new = [f for f in profile.facts if f.value == "$52/unit"]
         self.assertEqual(len(old), 1)
         self.assertFalse(old[0].is_active)
-        self.assertEqual(old[0].superseded_by, run_id)
         self.assertEqual(len(new), 1, "daemon must materialize the replacement fact")
         self.assertTrue(new[0].is_active)
+        self.assertEqual(
+            old[0].superseded_by, new[0].id,
+            "superseded_by must point at the replacing fact's ID, not the run_id",
+        )
 
         remaining = await self.storage.get_unconsolidated_turns()
         self.assertEqual(len(remaining), 0, "successful dream marks turns consolidated")

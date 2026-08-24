@@ -143,37 +143,25 @@ class DreamDaemon:
                         f"refusing to persist memory or mark turns consolidated."
                     )
 
-                # 4. Apply Contradiction Invalidation
-                # If any contradiction was detected, mark prior facts inactive
-                for resolution in result.contradiction_resolutions:
-                    for fact in profile.facts:
-                        if (
-                            fact.entity.lower() == resolution.entity.lower()
-                            and fact.attribute.lower() == resolution.attribute.lower()
-                            and fact.is_active
-                        ):
-                            fact.is_active = False
-                            fact.superseded_by = result.run_id
-
-                # 5. Append new active facts
-                for new_fact in result.added_facts:
-                    profile.facts.append(new_fact)
-
-                # 5b. Materialize replacement facts for contradictions the
-                # synthesizer resolved without emitting the new value in
-                # added_facts. The daemon must stay correct even when the
+                # 4. Resolve contradictions. The replacing fact is determined
+                # (or materialized) BEFORE the existing graph is touched, so
+                # every deactivated fact records the ID of the fact that
+                # superseded it. The daemon must stay correct even when the
                 # model returns an unexpected shape: an update must never
                 # leave the entity/attribute without an active fact.
-                def _has_active_fact(entity: str, attribute: str) -> bool:
-                    return any(
-                        f.is_active
-                        and f.entity.lower() == entity.lower()
-                        and f.attribute.lower() == attribute.lower()
-                        for f in profile.facts
-                    )
+                def _find_replacement(entity: str, attribute: str) -> Optional[Fact]:
+                    for f in result.added_facts:
+                        if (
+                            f.is_active
+                            and f.entity.lower() == entity.lower()
+                            and f.attribute.lower() == attribute.lower()
+                        ):
+                            return f
+                    return None
 
                 for resolution in result.contradiction_resolutions:
-                    if not _has_active_fact(resolution.entity, resolution.attribute):
+                    replacement = _find_replacement(resolution.entity, resolution.attribute)
+                    if replacement is None:
                         logger.warning(
                             f"Synthesizer resolved contradiction on "
                             f"{resolution.entity}.{resolution.attribute} without emitting a "
@@ -188,8 +176,31 @@ class DreamDaemon:
                             source_turn_ids=list(result.consolidated_turn_ids),
                             is_active=True,
                         )
-                        profile.facts.append(replacement)
                         result.added_facts.append(replacement)
+
+                    # Deactivate the pre-existing facts, pointing each at the
+                    # fact that replaced it (added_facts are not yet appended,
+                    # so the replacement itself cannot be deactivated here).
+                    for fact in profile.facts:
+                        if (
+                            fact.entity.lower() == resolution.entity.lower()
+                            and fact.attribute.lower() == resolution.attribute.lower()
+                            and fact.is_active
+                        ):
+                            fact.is_active = False
+                            fact.superseded_by = replacement.id
+
+                # 5. Append new active facts
+                for new_fact in result.added_facts:
+                    profile.facts.append(new_fact)
+
+                def _has_active_fact(entity: str, attribute: str) -> bool:
+                    return any(
+                        f.is_active
+                        and f.entity.lower() == entity.lower()
+                        and f.attribute.lower() == attribute.lower()
+                        for f in profile.facts
+                    )
 
                 # 5c. Invariant: after applying contradictions, every resolved
                 # entity/attribute must have an active fact. A deactivated fact
