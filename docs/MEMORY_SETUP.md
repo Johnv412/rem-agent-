@@ -15,7 +15,7 @@ verification listed per task.
 
 ---
 
-- [ ] **M1. Close the turn-capture gap (the real build item).**
+- [x] **M1. Close the turn-capture gap (the real build item).**
   The `init-claude` scaffold wires SessionStart (recall) and Stop (dream)
   hooks but nothing logs turns, so dreams have nothing to consolidate.
   Extend `remagent/integrations/claude_hooks.py` to also generate a

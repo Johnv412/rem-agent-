@@ -7,6 +7,8 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -179,14 +181,17 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
         settings_file = Path(target_dir) / ".claude" / "settings.json"
         session_start_script = Path(target_dir) / ".claude" / "hooks" / "session_start.sh"
         stop_script = Path(target_dir) / ".claude" / "hooks" / "stop.sh"
+        prompt_hook = Path(target_dir) / ".claude" / "hooks" / "user_prompt_submit.py"
 
         self.assertTrue(settings_file.exists())
         self.assertTrue(session_start_script.exists())
         self.assertTrue(stop_script.exists())
+        self.assertTrue(prompt_hook.exists())
 
         # Verify executable permissions
         self.assertTrue(os.access(session_start_script, os.X_OK))
         self.assertTrue(os.access(stop_script, os.X_OK))
+        self.assertTrue(os.access(prompt_hook, os.X_OK))
 
         # Check settings.json content
         with open(settings_file, "r", encoding="utf-8") as f:
@@ -197,11 +202,57 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
         self.assertIn("hooks", config)
         self.assertIn("SessionStart", config["hooks"])
         self.assertIn("Stop", config["hooks"])
+        self.assertIn("UserPromptSubmit", config["hooks"])
+        self.assertIn("user_prompt_submit.py", config["hooks"]["UserPromptSubmit"][0]["command"])
 
         # Check idempotency
         second_run = generate_claude_configuration(target_dir=target_dir, force=False)
         for status in second_run.values():
             self.assertIn("skipped", status)
+
+    # ------------------------------------------------------------------
+    # UserPromptSubmit turn-capture hook (functional, via subprocess)
+    # ------------------------------------------------------------------
+
+    def _generate_and_get_prompt_hook(self) -> str:
+        target_dir = os.path.join(self.temp_dir, "hookws")
+        os.makedirs(target_dir, exist_ok=True)
+        generate_claude_configuration(target_dir=target_dir, db_path=self.db_path)
+        return os.path.join(target_dir, ".claude", "hooks", "user_prompt_submit.py")
+
+    def _run_prompt_hook(self, hook: str, stdin_text: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, hook, "--db", self.db_path],
+            input=stdin_text,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    async def test_prompt_hook_logs_prompt_verbatim(self):
+        hook = self._generate_and_get_prompt_hook()
+        payload = {"prompt": "We use PostgreSQL 16 on Cloud SQL for prod.", "session_id": "sess_42"}
+        proc = self._run_prompt_hook(hook, json.dumps(payload))
+        self.assertEqual(proc.returncode, 0, msg=f"stderr: {proc.stderr}")
+
+        turns = await self.storage.get_unconsolidated_turns()
+        self.assertEqual(len(turns), 1)
+        self.assertEqual(turns[0].content, "We use PostgreSQL 16 on Cloud SQL for prod.")
+        self.assertEqual(turns[0].session_id, "sess_42")
+        self.assertEqual(turns[0].role, "user")
+
+    async def test_prompt_hook_empty_prompt_is_noop(self):
+        hook = self._generate_and_get_prompt_hook()
+        proc = self._run_prompt_hook(hook, json.dumps({"prompt": "   "}))
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(await self.storage.get_unconsolidated_turns(), [])
+
+    async def test_prompt_hook_invalid_json_exits_one_and_persists_nothing(self):
+        hook = self._generate_and_get_prompt_hook()
+        proc = self._run_prompt_hook(hook, "this is not json")
+        self.assertEqual(proc.returncode, 1, "failure must be non-zero but never 2 (would block the prompt)")
+        self.assertIn("remagent hook", proc.stderr)
+        self.assertEqual(await self.storage.get_unconsolidated_turns(), [])
 
 
 if __name__ == "__main__":
