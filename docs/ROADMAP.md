@@ -79,7 +79,7 @@ list them when everything else is done.
 
 ## Phase 2 — Packaging honesty
 
-- [ ] **T7. Fix package metadata.**
+- [x] **T7. Fix package metadata.**
   pyproject URLs point at `github.com/remagent/remagent` (wrong repo) —
   point them at `https://github.com/Johnv412/rem-agent-`. Remove unused
   `typer`/`rich` from the `all` extra. Confirm a LICENSE file exists

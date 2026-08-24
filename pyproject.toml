@@ -36,8 +36,6 @@ classifiers = [
 dependencies = [
     "google-genai>=2.4.0",
     "pydantic>=2.6.0",
-    "pydantic-settings>=2.2.0",
-    "typing-extensions>=4.10.0",
 ]
 
 [project.optional-dependencies]
@@ -50,9 +48,6 @@ claude = [
 all = [
     "remagent[firestore]",
     "remagent[claude]",
-    "aiosqlite>=0.20.0",
-    "rich>=13.7.0",
-    "typer>=0.9.0",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -67,5 +62,5 @@ remagent-mcp = "remagent.integrations.claude_code:main"
 
 [project.urls]
 Homepage = "https://dreamengine.dev"
-Repository = "https://github.com/remagent/remagent"
+Repository = "https://github.com/Johnv412/rem-agent-"
 Documentation = "https://remagent.dev"
