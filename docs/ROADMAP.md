@@ -132,7 +132,7 @@ list them when everything else is done.
 
 ## Phase 5 — Finish-line verification
 
-- [ ] **T12. Clean-environment install test.**
+- [x] **T12. Clean-environment install test.**
   Fresh venv in a temp dir; follow README verbatim (clone step may be
   simulated by the local checkout): `pip install -e ".[claude]"`, then
   `remagent log`/`dream`/`recall` E2E with the real key sourced from

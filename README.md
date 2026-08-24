@@ -209,6 +209,9 @@ remagent status --db my_agent_memory.db
 
 # Append a raw turn from bash/scripts
 remagent log --role user --content "Deploying to us-west2 region."
+
+# Apply Ebbinghaus temporal decay to long-dormant, low-confidence facts
+remagent decay --db my_agent_memory.db --half-life-days 30 --floor 0.2
 ```
 
 ---
