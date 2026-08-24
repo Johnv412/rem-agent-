@@ -38,6 +38,28 @@ class _FakeClient:
         self.models = _FakeModels(text)
 
 
+class _FlakyModels:
+    """Fails the first `failures` calls (transient ConnectionError by default),
+    then returns the payload."""
+
+    def __init__(self, failures: int, text: str, exc_factory=None):
+        self.failures = failures
+        self._text = text
+        self.calls = 0
+        self._exc_factory = exc_factory or (lambda: ConnectionError("transient network blip"))
+
+    def generate_content(self, **kwargs):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise self._exc_factory()
+        return _FakeResponse(self._text)
+
+
+class _FakeClientWithModels:
+    def __init__(self, models):
+        self.models = models
+
+
 GEMINI_PAYLOAD = {
     "added_facts": [
         {
@@ -147,6 +169,42 @@ class TestSynthesizerSuccessPath(unittest.IsolatedAsyncioTestCase):
                 unconsolidated_turns=[RawTurnLog(role="user", content="x")],
                 existing_profile=MemoryProfile(agent_id="a"),
             )
+
+    async def test_transient_errors_retry_then_succeed(self):
+        s = DreamSynthesizer(api_key="test-key", retry_backoff_seconds=0.0)
+        models = _FlakyModels(failures=2, text=json.dumps(GEMINI_PAYLOAD))
+        s._client = _FakeClientWithModels(models)
+
+        result = await s.consolidate_window(
+            unconsolidated_turns=[RawTurnLog(role="user", content="x")],
+            existing_profile=MemoryProfile(agent_id="a"),
+        )
+        self.assertEqual(models.calls, 3, "two transient failures then success = 3 attempts")
+        self.assertEqual(len(result.added_facts), 1)
+
+    async def test_persistent_transient_failure_exhausts_and_raises(self):
+        s = DreamSynthesizer(api_key="test-key", retry_backoff_seconds=0.0)
+        models = _FlakyModels(failures=99, text="{}")
+        s._client = _FakeClientWithModels(models)
+
+        with self.assertRaises(DreamSynthesisError):
+            await s.consolidate_window(
+                unconsolidated_turns=[RawTurnLog(role="user", content="x")],
+                existing_profile=MemoryProfile(agent_id="a"),
+            )
+        self.assertEqual(models.calls, 3, "must stop after max_attempts, never loop forever")
+
+    async def test_non_transient_error_is_never_retried(self):
+        s = DreamSynthesizer(api_key="test-key", retry_backoff_seconds=0.0)
+        models = _FlakyModels(failures=99, text="{}", exc_factory=lambda: ValueError("bad request schema"))
+        s._client = _FakeClientWithModels(models)
+
+        with self.assertRaises(DreamSynthesisError):
+            await s.consolidate_window(
+                unconsolidated_turns=[RawTurnLog(role="user", content="x")],
+                existing_profile=MemoryProfile(agent_id="a"),
+            )
+        self.assertEqual(models.calls, 1, "non-transient errors fail immediately")
 
     @unittest.skipUnless(
         os.environ.get("RUN_LIVE_GEMINI") == "1",

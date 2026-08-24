@@ -68,7 +68,7 @@ list them when everything else is done.
   gated behind `RUN_LIVE_GEMINI=1` (skipped by default).
   *Done when:* new tests pass without any network access; pytest green.
 
-- [ ] **T6. Bounded retry for transient Gemini errors.**
+- [x] **T6. Bounded retry for transient Gemini errors.**
   In `synthesizer.consolidate_window`, retry the Gemini call up to 2
   extra times with short backoff on transient errors (timeouts, 5xx,
   429), then raise `DreamSynthesisError` as today. Never retry on

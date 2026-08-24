@@ -4,6 +4,7 @@ Emulates biological sleep/REM consolidation: prunes conversational noise, extrac
 entity facts, resolves contradictions, and updates operational heuristics without vector databases.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -134,10 +135,24 @@ class DreamSynthesizer:
         self,
         api_key: Optional[str] = None,
         model_name: str = "gemini-2.5-flash",
+        max_attempts: int = 3,
+        retry_backoff_seconds: float = 1.0,
     ):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.model_name = model_name
+        self.max_attempts = max(1, max_attempts)
+        self.retry_backoff_seconds = retry_backoff_seconds
         self._client = None
+
+    @staticmethod
+    def _is_transient_error(exc: Exception) -> bool:
+        """Retry only genuinely transient transport failures: timeouts,
+        connection drops, 429 rate limits, and 5xx server errors."""
+        code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+        if isinstance(code, int) and (code == 429 or 500 <= code <= 599):
+            return True
+        transient_names = ("Timeout", "ConnectionError", "ConnectionReset", "ServiceUnavailable", "DeadlineExceeded")
+        return any(name in type(exc).__name__ for name in transient_names)
 
     def _get_client(self):
         if self._client is None:
@@ -210,23 +225,42 @@ Execute the REM sleep consolidation cycle now:
 4. Synthesize updated operational rules.
 """
 
-        try:
-            # We call Gemini with structured JSON output
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=user_prompt,
-                config={
-                    "system_instruction": DREAM_PROMPT_SYSTEM,
-                    "response_mime_type": "application/json",
-                    "response_schema": DreamSynthesisOutput,
-                },
-            )
+        # We call Gemini with structured JSON output. Transient transport
+        # errors get a bounded retry with backoff; anything else — and any
+        # retry exhaustion — fails loudly. Parse errors are never retried.
+        response = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                response = client.models.generate_content(
+                    model=self.model_name,
+                    contents=user_prompt,
+                    config={
+                        "system_instruction": DREAM_PROMPT_SYSTEM,
+                        "response_mime_type": "application/json",
+                        "response_schema": DreamSynthesisOutput,
+                    },
+                )
+                break
+            except Exception as exc:
+                if attempt < self.max_attempts and self._is_transient_error(exc):
+                    delay = self.retry_backoff_seconds * attempt
+                    logger.warning(
+                        "Transient Gemini error on attempt %d/%d: %s — retrying in %.1fs",
+                        attempt, self.max_attempts, exc, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error("Dream synthesis failed; no memory will be written: %s", exc, exc_info=True)
+                raise DreamSynthesisError(f"Gemini dream synthesis failed: {exc}") from exc
 
+        try:
             response_data = json.loads(response.text)
             parsed = DreamSynthesisOutput(**response_data)
-
         except Exception as exc:
-            logger.error("Dream synthesis failed; no memory will be written: %s", exc, exc_info=True)
+            logger.error(
+                "Dream synthesis returned an unparseable response; no memory will be written: %s",
+                exc, exc_info=True,
+            )
             raise DreamSynthesisError(f"Gemini dream synthesis failed: {exc}") from exc
 
         # Map to domain entities
