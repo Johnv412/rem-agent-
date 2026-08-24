@@ -34,6 +34,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60">
                 Zero-Vector Memory
               </span>
+              <span
+                title="This dashboard runs on seeded, in-memory simulation data — it is not a live view of a real RemAgent database."
+                className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/70"
+              >
+                Demo playground · simulated data
+              </span>
             </div>
             <p className="text-xs text-slate-500 hidden sm:block">
               Autonomous Biological Sleep Consolidation for AI Agents

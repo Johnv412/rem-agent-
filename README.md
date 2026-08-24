@@ -231,5 +231,9 @@ remagent log --role user --content "Deploying to us-west2 region."
 
 ---
 
+## 🖥️ Demo Dashboard
+
+The repo also contains a web dashboard (Vite + React + Express, `npm run dev`) that visualizes the dream cycle. It is a **demo playground running on seeded, in-memory simulation data** — it is not a live view of a real RemAgent SQLite database. Its Gemini-backed features (REM consolidation, agent chat) require `GEMINI_API_KEY` and return explicit errors without it.
+
 ## 📄 License
 Apache-2.0. Built with Google Gemini for the next generation of autonomous AI systems.

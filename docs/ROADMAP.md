@@ -109,7 +109,7 @@ list them when everything else is done.
 
 ## Phase 4 — Dashboard & CI
 
-- [ ] **T10. Label the dashboard honestly as a demo playground.**
+- [x] **T10. Label the dashboard honestly as a demo playground.**
   The dashboard looks like a live view of real memory but runs on seeded
   in-memory simulation state. Add a clear "Demo playground — simulated
   data" indicator in the UI (e.g. Navbar badge) and a README sentence.
