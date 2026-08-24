@@ -50,7 +50,7 @@ verification listed per task.
   prices). Gitignored, nothing references them.
   *Done when:* both files gone; `git status` unchanged.
 
-- [ ] **M4. Wire this repo: `remagent init-claude` against the global DB.**
+- [x] **M4. Wire this repo: `remagent init-claude` against the global DB.**
   Create `/Users/test/.remagent/` and run init-claude with
   `--db /Users/test/.remagent/memory.db --agent john` in this repo.
   Verify `.claude/settings.json` registers the MCP server, SessionStart,
