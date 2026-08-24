@@ -44,7 +44,7 @@ verification listed per task.
   *Done when:* `zsh -ic 'which remagent && [ -n "$GEMINI_API_KEY" ]'`
   succeeds from a fresh interactive shell.
 
-- [ ] **M3. Delete the two stale bug-artifact DBs.**
+- [x] **M3. Delete the two stale bug-artifact DBs.**
   `remagent_memory.db` and `dream_live.db` in the repo root — both are
   pre-fix artifacts (fabricated fallback fact; shell-expanded empty
   prices). Gitignored, nothing references them.
