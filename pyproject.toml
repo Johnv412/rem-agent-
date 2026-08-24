@@ -49,9 +49,12 @@ all = [
     "remagent[firestore]",
     "remagent[claude]",
 ]
-dev = [
+test = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+]
+dev = [
+    "remagent[test]",
     "ruff>=0.3.0",
     "mypy>=1.9.0",
 ]
