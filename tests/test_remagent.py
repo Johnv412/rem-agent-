@@ -104,6 +104,31 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         injection = governor.build_budgeted_prompt_injection(profile, query_context="framework", max_tokens=150)
         self.assertIn("REMAGENT DETERMINISTIC MEMORY CONTEXT", injection)
         self.assertIn("Prefer dark mode", injection)
+        self.assertNotIn("TOKEN BUDGET OVERFLOW", injection)
+
+    def test_token_budget_governor_p1_overflow_enforced_and_signaled(self):
+        # Failure path: P1 rules alone exceed max_tokens. The budget is a hard
+        # contract — the output must fit AND carry an explicit overflow signal,
+        # never silently blow past the ceiling.
+        governor = TokenBudgetGovernor(default_max_tokens=80)
+        rules = [
+            OperationalRule(
+                id=f"r{i}",
+                category="operational_directive",
+                rule=f"Critical unbreakable directive number {i}: " + ("x" * 120),
+                rationale="",
+                priority=1,
+            )
+            for i in range(6)
+        ]
+        profile = MemoryProfile(agent_id="overflow_test", facts=[], rules=rules)
+
+        injection = governor.build_budgeted_prompt_injection(profile, max_tokens=80)
+        self.assertLessEqual(
+            governor.estimate_tokens(injection), 80,
+            "output must not exceed the token budget",
+        )
+        self.assertIn("TOKEN BUDGET OVERFLOW", injection)
 
     def test_memory_decay_engine(self):
         decay_engine = MemoryDecayEngine(half_life_days=1.0, min_confidence_floor=0.3)

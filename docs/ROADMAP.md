@@ -41,7 +41,7 @@ list them when everything else is done.
   *Done when:* a failure-path test triggers the lock-contention path and
   asserts callers do NOT report up-to-date; pytest green.
 
-- [ ] **T3. Enforce the governor's token budget on P1 rules.**
+- [x] **T3. Enforce the governor's token budget on P1 rules.**
   (Audit finding.) `governor.py:68-70` appends all priority-1 rules
   unconditionally, so `max_tokens` can silently overflow — the token
   budget is a headline feature. Enforce the budget (truncate with an
