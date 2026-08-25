@@ -38,7 +38,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
   1.
   *Done when:* pytest green including the new tests.
 
-- [ ] **A2. launchd: scheduled dreaming every 30 min.**
+- [x] **A2. launchd: scheduled dreaming every 30 min.**
   `~/Library/LaunchAgents/com.remagent.dream.plist` (template committed at
   `config/launchd/`): every 1800s run dream then doctor against the global
   DB (`--agent john`), absolute paths, sourcing `~/.remagent/env` (launchd

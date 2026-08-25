@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- RemAgent scheduled dreaming: every 30 min, dream then self-audit.
+         launchd does not read .zshrc, so the key is sourced explicitly and
+         all paths are absolute. Non-zero exits are honest signals
+         (busy=2, failure=1) and appear in the log. -->
+    <key>Label</key>
+    <string>com.remagent.dream</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>source /Users/test/.remagent/env; echo "--- $(date '+%Y-%m-%d %H:%M:%S') dream cycle ---"; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent dream --agent john --db /Users/test/.remagent/memory.db; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent doctor --agent john --db /Users/test/.remagent/memory.db</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>1800</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/test/.remagent/logs/dream.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/test/.remagent/logs/dream.log</string>
+</dict>
+</plist>
