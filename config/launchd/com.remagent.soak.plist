@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- RemAgent soak snapshot: one doctor --json line per day at 21:00,
+         appended to soak.jsonl. Seven lines = seven days of evidence for
+         the open-source gate (docs/SOAK_CRITERIA.md). -->
+    <key>Label</key>
+    <string>com.remagent.soak</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>source /Users/test/.remagent/env; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent doctor --json --agent john --db /Users/test/.remagent/memory.db >> /Users/test/.remagent/logs/soak.jsonl</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>21</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardErrorPath</key>
+    <string>/Users/test/.remagent/logs/soak.err.log</string>
+</dict>
+</plist>

@@ -77,7 +77,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
   *Done when:* both scripts exit 0 locally (and correctly exit non-zero
   when their assertions are violated); staged YAML parses.
 
-- [ ] **A6. Soak instrumentation + criteria doc, then STOP.**
+- [x] **A6. Soak instrumentation + criteria doc, then STOP.**
   `docs/SOAK_CRITERIA.md`: the 7-day pass/fail criteria (≥1 real dream/day
   with zero fallback and zero erasure hits; ≥1 organic contradiction
   correctly superseded; queue bounded; injection under budget and
