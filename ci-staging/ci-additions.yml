@@ -1,0 +1,53 @@
+# STAGED WORKFLOW — lives in ci-staging/ because this machine's git
+# credential lacks the `workflow` scope. To activate (John, via web UI):
+# create .github/workflows/ci-extra.yml with this content. No secrets
+# required — every job here runs keyless by design.
+
+name: CI Extra
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  keyless-e2e:
+    name: Keyless CLI E2E (fresh venv)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run keyless E2E
+        run: bash scripts/ci_keyless_e2e.sh
+
+  dashboard-keyless:
+    name: Dashboard keyless honesty
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run keyless dashboard test
+        run: bash scripts/test_dashboard_keyless.sh
+
+  packaging:
+    name: Wheel build + twine check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build and validate distribution
+        run: |
+          pip install --quiet build twine
+          python -m build --outdir pydist
+          twine check pydist/*

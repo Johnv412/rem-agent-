@@ -65,7 +65,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
   *Done when:* `scripts/live_canary.py` run locally against live Gemini
   exits 0 with the supersession proven; workflow YAML parses.
 
-- [ ] **A5. Keyless E2E scripts + staged CI job.**
+- [x] **A5. Keyless E2E scripts + staged CI job.**
   (a) `scripts/ci_keyless_e2e.sh`: fresh venv, `pip install -e
   ".[claude,test]"`, CLI E2E without any key — log works, dream fails
   honestly (exit 1, turns preserved), decay works, doctor reports the
