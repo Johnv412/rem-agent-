@@ -47,7 +47,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
   *Done when:* agent loaded (`launchctl list`), one triggered run logged,
   log shows real dream-or-clean-empty output plus doctor verdict.
 
-- [ ] **A3. launchd: weekly decay (Sunday).**
+- [x] **A3. launchd: weekly decay (Sunday).**
   `com.remagent.decay.plist` same pattern, `StartCalendarInterval` Sunday
   03:00, logs to `~/.remagent/logs/decay.log`.
   *Done when:* agent loaded and one manually-triggered (`launchctl
