@@ -8,6 +8,8 @@ import json
 import sys
 from remagent.daemon import ConsolidationBusyError, DreamDaemon
 from remagent.decay import MemoryDecayEngine
+from remagent.doctor import run_doctor
+from remagent.schemas import current_utc_iso
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
@@ -54,6 +56,14 @@ async def run_cli():
     decay_parser.add_argument("--half-life-days", type=float, default=30.0, help="Confidence half-life in days")
     decay_parser.add_argument("--floor", type=float, default=0.20, help="Confidence floor below which facts are deactivated")
 
+    # Command: doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Read-only self-audit of the memory pipeline")
+    doctor_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+    doctor_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    doctor_parser.add_argument("--max-queue", type=int, default=100, help="Max acceptable unconsolidated turns")
+    doctor_parser.add_argument("--max-dream-age-hours", type=float, default=24.0, help="Max hours since last dream when turns are queued")
+    doctor_parser.add_argument("--json", action="store_true", help="Emit one JSON object instead of text")
+
     # Command: init-claude
     init_claude_parser = subparsers.add_parser("init-claude", help="Scaffold Claude Code hooks and settings.json")
     init_claude_parser.add_argument("--dir", default=".", help="Target workspace directory")
@@ -81,6 +91,33 @@ async def run_cli():
         print("   - SessionStart hook: Pre-loads active rules & knowledge into context.")
         print("   - Stop hook: Runs background REM sleep consolidation when work completes.")
         print("   - MCP server: Exposes remagent_recall, remagent_log, and remagent_dream tools.")
+        return
+
+    if args.command == "doctor":
+        # Runs before any storage initialization: doctor is strictly
+        # read-only and must never create the database it is auditing.
+        results = run_doctor(
+            db_path=args.db,
+            agent_id=args.agent,
+            max_queue=args.max_queue,
+            max_dream_age_hours=args.max_dream_age_hours,
+        )
+        ok = all(r.passed for r in results)
+        if args.json:
+            print(json.dumps({
+                "ok": ok,
+                "timestamp": current_utc_iso(),
+                "db": args.db,
+                "agent": args.agent,
+                "checks": [{"name": r.name, "passed": r.passed, "detail": r.detail} for r in results],
+            }))
+        else:
+            print(f"🩺 [RemAgent Doctor] db={args.db} agent={args.agent}")
+            for r in results:
+                print(f"   {'✅' if r.passed else '❌'} {r.name}: {r.detail}")
+            print("   → ALL CHECKS PASSED" if ok else "   → DOCTOR FAILED: pipeline needs attention")
+        if not ok:
+            sys.exit(1)
         return
 
     storage = SQLiteStorageAdapter(db_path=args.db)

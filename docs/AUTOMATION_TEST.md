@@ -17,7 +17,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
 
 ---
 
-- [ ] **A1. `remagent doctor` — pipeline self-audit command (keystone).**
+- [x] **A1. `remagent doctor` — pipeline self-audit command (keystone).**
   New `remagent/doctor.py` + CLI subcommand. Read-only checks against the
   DB, each printed ✅/❌; exit 0 only if ALL pass, else exit 1:
   1. DB file exists and passes `PRAGMA quick_check`.
