@@ -1,0 +1,39 @@
+# STAGED WORKFLOW — lives in ci-staging/ because this machine's git
+# credential lacks the `workflow` scope. To activate (John, via web UI):
+#   1. Add repo secret GEMINI_API_KEY (Settings -> Secrets and variables
+#      -> Actions).
+#   2. Create .github/workflows/live-canary.yml with this content.
+#   3. Uncomment the `schedule` block below for the nightly run.
+#
+# Cost: ~2 Gemini flash calls per run. Catches SDK upgrades, model drift,
+# and schema rejections — the class of breakage mocked tests cannot see.
+
+name: Live Gemini Canary
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "17 7 * * *"   # nightly 07:17 UTC — uncomment to enable
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify secret is configured
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY secret is not configured — the canary cannot run. Add it in repo Settings -> Secrets."
+            exit 1
+          fi
+      - name: Install package
+        run: pip install -e .
+      - name: Run live canary (real Gemini, throwaway DB)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/live_canary.py

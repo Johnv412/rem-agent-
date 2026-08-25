@@ -53,7 +53,7 @@ Gates: `python3 -m pytest tests/ -q` for code tasks, plus each task's own
   *Done when:* agent loaded and one manually-triggered (`launchctl
   kickstart`) run logged successfully.
 
-- [ ] **A4. Live-Gemini canary script + staged (disabled) workflow.**
+- [x] **A4. Live-Gemini canary script + staged (disabled) workflow.**
   `scripts/live_canary.py`: temp DB → log $40 → dream → log $52 → dream →
   assert old fact inactive with `superseded_by` = new fact id, new fact
   active, zero fallback fingerprints; exit non-zero with details on any
