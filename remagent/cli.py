@@ -64,6 +64,11 @@ async def run_cli():
     doctor_parser.add_argument("--max-dream-age-hours", type=float, default=24.0, help="Max hours since last dream when turns are queued")
     doctor_parser.add_argument("--json", action="store_true", help="Emit one JSON object instead of text")
 
+    # Command: soak
+    soak_parser = subparsers.add_parser("soak", help="Plain-English verdict on the 7-day soak")
+    soak_parser.add_argument("--config", default="~/.remagent/soak_config.json", help="Soak config path")
+    soak_parser.add_argument("--today", default=None, help=argparse.SUPPRESS)  # test hook: YYYY-MM-DD
+
     # Command: init-claude
     init_claude_parser = subparsers.add_parser("init-claude", help="Scaffold Claude Code hooks and settings.json")
     init_claude_parser.add_argument("--dir", default=".", help="Target workspace directory")
@@ -91,6 +96,14 @@ async def run_cli():
         print("   - SessionStart hook: Pre-loads active rules & knowledge into context.")
         print("   - Stop hook: Runs background REM sleep consolidation when work completes.")
         print("   - MCP server: Exposes remagent_recall, remagent_log, and remagent_dream tools.")
+        return
+
+    if args.command == "soak":
+        from remagent.soak import run_soak_report
+        code, report = run_soak_report(config_path=args.config, today=args.today)
+        print(report)
+        if code != 0:
+            sys.exit(code)
         return
 
     if args.command == "doctor":

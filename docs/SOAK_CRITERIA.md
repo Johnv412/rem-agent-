@@ -32,13 +32,22 @@ weekly decay) runs untouched. Evidence accumulates in
    no script can grade — the content would genuinely help a fresh
    session.
 
-**Review procedure (John, day 7):**
+**Soak window:** day 1 = 2026-08-25, day 7 = 2026-08-31 (final snapshot
+21:00 that evening). Baseline: the pre-soak DB state (4 facts, 1 audit,
+1 turn) is archived at `~/.remagent/baselines/memory.baseline-2026-08-25.db`
+and recorded in `~/.remagent/soak_config.json`; dreaming writes live —
+that IS the system being soaked — and everything after the baseline is
+observed and diffable.
+
+**Review procedure (John, any day — one command):**
 ```bash
-cat ~/.remagent/logs/soak.jsonl            # 7 lines, all "ok": true
-grep -c "FAILED\|❌" ~/.remagent/logs/dream.log   # investigate any hit
-remagent recall --format injection --agent john --db ~/.remagent/memory.db
-sqlite3 ~/.remagent/memory.db "SELECT facts_json FROM memory_profiles WHERE agent_id='john';" | python3 -m json.tool
+remagent soak
 ```
+It prints, in plain English: IN PROGRESS (with health so far), or
+SOAK PASSED / SOAK FAILED with every reason named, plus the recall
+injection for the one criterion only you can grade. Exit 0 = pass or
+healthy-in-progress, 1 = failed. The raw evidence remains in
+`~/.remagent/logs/` if you want to dig.
 
 **On PASS:** proceed to the open-source flip (fresh secrets scan → tag
 v1.0.0 → PyPI → README flip → public → deploy). **On FAIL:** the failing
