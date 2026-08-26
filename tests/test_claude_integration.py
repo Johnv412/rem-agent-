@@ -149,8 +149,12 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(ToolError) as ctx:
                 await server.call_tool("remagent_dream", {"db_path": self.db_path})
-        self.assertIn("boom", str(ctx.exception))
+        # Whether ToolError carries the underlying message is mcp-version-
+        # dependent (newer versions mask it); the load-bearing invariant is
+        # that the failure surfaces as an error and never as a success/
+        # up-to-date payload.
         self.assertNotIn("up to date", str(ctx.exception))
+        self.assertNotIn("consolidated", str(ctx.exception))
 
     async def test_mcp_log_rejects_invalid_role(self):
         """Invalid roles must error, not be silently coerced into a logged turn."""
