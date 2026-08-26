@@ -1,8 +1,3 @@
-# STAGED WORKFLOW — lives in ci-staging/ because this machine's git
-# credential lacks the `workflow` scope. To activate (John, via web UI):
-# create .github/workflows/ci-extra.yml with this content. No secrets
-# required — every job here runs keyless by design.
-
 name: CI Extra
 
 on:
