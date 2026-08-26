@@ -76,6 +76,7 @@ Read this before installing. RemAgent captures interaction turns — which for d
 - **What's stored:** raw turns and consolidated facts, in a local SQLite database (`memory.db`) you own. Nothing is stored by RemAgent anywhere else.
 - **What leaves your machine:** during a dream cycle, buffered turns are sent to the Gemini API for consolidation. That is the only network egress. If your sessions may contain secrets or client-confidential material, treat this the same way you'd treat any LLM API usage — and don't log what you can't send.
 - **Purging:** delete the database file, or use `remagent decay` to age out low-confidence facts. Superseded facts retain history until purged.
+- **Git:** the memory database and the markdown mirror (`remagent export --markdown`) are added to `.gitignore` by the `init-claude` scaffold. **Committing agent memory to git is opt-in** — it may contain sensitive session content (code, paths, client names), so only remove those ignore rules deliberately.
 - **Enterprise:** the `[firestore]` extra moves storage to Google Cloud Firestore under your own GCP project and IAM. Bring your own compliance posture; RemAgent doesn't add one for you.
 
 ## 📦 Installation

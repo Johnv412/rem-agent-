@@ -74,6 +74,17 @@ class TestMarkdownExport(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Pin versions", rules_md)
         self.assertNotIn("Old rule", rules_md, "inactive rules must not appear")
 
+    async def test_low_confidence_active_facts_render(self):
+        """The audit value of the mirror is seeing weak beliefs too — active
+        facts render regardless of confidence."""
+        await self.seed(facts=[
+            Fact(entity="Hunch", attribute="maybe", value="probably-x", confidence=0.25),
+        ])
+        export_markdown(self.db_path, "a", self.out)
+        hunch = open(os.path.join(self.out, "hunch.md")).read()
+        self.assertIn("probably-x", hunch)
+        self.assertIn("0.25", hunch)
+
     async def test_deterministic_output(self):
         await self.seed(facts=[Fact(entity="Vendor", attribute="price", value="$52")])
         export_markdown(self.db_path, "a", self.out)

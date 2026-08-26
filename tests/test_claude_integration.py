@@ -209,10 +209,19 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
         self.assertIn("UserPromptSubmit", config["hooks"])
         self.assertIn("user_prompt_submit.py", config["hooks"]["UserPromptSubmit"][0]["command"])
 
-        # Check idempotency
+        # .gitignore must cover the memory db and markdown mirror: committing
+        # agent memory is opt-in (may contain sensitive session content).
+        gitignore = (Path(target_dir) / ".gitignore").read_text()
+        self.assertIn("workspace_memory.db*", gitignore)
+        self.assertIn("workspace_memory_md/", gitignore)
+        self.assertIn("opt-in", gitignore)
+
+        # Check idempotency (including that the .gitignore block is appended once)
         second_run = generate_claude_configuration(target_dir=target_dir, force=False)
         for status in second_run.values():
             self.assertIn("skipped", status)
+        gitignore_again = (Path(target_dir) / ".gitignore").read_text()
+        self.assertEqual(gitignore, gitignore_again, "gitignore block must not duplicate")
 
     # ------------------------------------------------------------------
     # UserPromptSubmit turn-capture hook (functional, via subprocess)

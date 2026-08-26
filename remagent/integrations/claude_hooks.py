@@ -161,6 +161,27 @@ if __name__ == "__main__":
     else:
         results[str(session_start_hook_path)] = "skipped (already exists, use --force to overwrite)"
 
+    # Ensure the workspace .gitignore covers local memory artifacts —
+    # committing agent memory to git is OPT-IN (it may contain sensitive
+    # session content). Appended once, marker-guarded, never overwrites.
+    gitignore_path = base_dir / ".gitignore"
+    ignore_marker = "# RemAgent local memory"
+    db_name = os.path.basename(db_path)
+    db_stem = os.path.splitext(db_name)[0]
+    ignore_block = (
+        f"\n{ignore_marker} — committing agent memory to git is opt-in;"
+        " it may contain sensitive session content\n"
+        f"{db_name}*\n"
+        f"{db_stem}_md/\n"
+    )
+    existing_ignore = gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
+    if ignore_marker in existing_ignore:
+        results[str(gitignore_path)] = "skipped (RemAgent block already present)"
+    else:
+        with open(gitignore_path, "a", encoding="utf-8") as f:
+            f.write(ignore_block)
+        results[str(gitignore_path)] = "updated (memory db + markdown mirror ignored)"
+
     # Write user_prompt_submit.py (turn capture — without it, dreams have
     # nothing to consolidate)
     if not prompt_hook_path.exists() or force:

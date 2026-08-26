@@ -12,3 +12,5 @@ __pycache__/
 .pytest_cache/
 .claude/
 pydist/
+# RemAgent markdown memory mirror (opt-in to commit — may contain sensitive session content)
+remagent_memory_md/
