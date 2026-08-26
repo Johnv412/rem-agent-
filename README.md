@@ -243,6 +243,12 @@ remagent log --role user --content "Deploying to us-west2 region."
 # Apply Ebbinghaus temporal decay to long-dormant, low-confidence facts
 remagent decay --db my_agent_memory.db --half-life-days 30 --floor 0.2
 
+# Export active memory as a readable markdown mirror (one file per entity,
+# rules in rules.md) — cat/grep/diff your agent's memory. The database stays
+# the source of truth; add --export-md to `remagent dream` to regenerate the
+# mirror after every dream cycle.
+remagent export --markdown --db my_agent_memory.db
+
 # Self-audit the installation (hooks, jobs, database integrity)
 remagent doctor
 ```

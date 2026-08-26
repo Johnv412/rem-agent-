@@ -56,7 +56,7 @@ def generate_claude_configuration(
             "Stop": [
                 {
                     "type": "command",
-                    "command": f"remagent dream --agent {agent_id} --db {db_path}",
+                    "command": f"remagent dream --agent {agent_id} --db {db_path} --export-md",
                 }
             ],
         },
@@ -70,8 +70,9 @@ remagent recall --format injection --agent {agent_id} --db {db_path}
 
     stop_script = f"""#!/bin/bash
 # RemAgent Stop / Idle Hook for Claude Code
-# Triggers background REM sleep consolidation to prune noise and extract newly learned facts.
-remagent dream --agent {agent_id} --db {db_path}
+# Triggers background REM sleep consolidation to prune noise and extract newly
+# learned facts, then regenerates the human-readable markdown mirror.
+remagent dream --agent {agent_id} --db {db_path} --export-md
 """
 
     prompt_hook_script = f'''#!/usr/bin/env python3

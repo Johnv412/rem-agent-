@@ -5,10 +5,12 @@ Command-line interface for the RemAgent framework.
 import argparse
 import asyncio
 import json
+import os
 import sys
 from remagent.daemon import ConsolidationBusyError, DreamDaemon
 from remagent.decay import MemoryDecayEngine
 from remagent.doctor import run_doctor
+from remagent.export import ExportError, default_out_dir, export_markdown
 from remagent.schemas import current_utc_iso
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
@@ -28,6 +30,10 @@ async def run_cli():
     dream_parser = subparsers.add_parser("dream", help="Trigger an immediate REM consolidation cycle")
     dream_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
     dream_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    dream_parser.add_argument(
+        "--export-md", nargs="?", const="", default=None, metavar="DIR",
+        help="After a successful dream, regenerate the markdown mirror (default DIR: <db>_md)",
+    )
 
     # Command: status
     status_parser = subparsers.add_parser("status", help="Inspect active memory profile and consolidated facts")
@@ -48,6 +54,13 @@ async def run_cli():
     log_parser.add_argument("--content", required=True, help="Turn message content")
     log_parser.add_argument("--session", default="default_session", help="Session ID")
     log_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+
+    # Command: export
+    export_parser = subparsers.add_parser("export", help="Export memory as a human-readable mirror")
+    export_parser.add_argument("--markdown", action="store_true", help="Markdown format (currently the only format)")
+    export_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+    export_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    export_parser.add_argument("--out", default=None, help="Output directory (default: <db>_md next to the database)")
 
     # Command: decay
     decay_parser = subparsers.add_parser("decay", help="Apply Ebbinghaus temporal decay to stored facts")
@@ -106,6 +119,23 @@ async def run_cli():
             sys.exit(code)
         return
 
+    if args.command == "export":
+        # Read-only like doctor: must never create the DB it mirrors.
+        if not args.markdown:
+            print("❌ FAILED: specify a format — currently only --markdown is supported.", file=sys.stderr)
+            sys.exit(2)
+        out_dir = args.out or default_out_dir(args.db)
+        try:
+            written = export_markdown(db_path=args.db, agent_id=args.agent, out_dir=out_dir)
+        except ExportError as exc:
+            print(f"❌ FAILED: markdown export did not complete: {exc}", file=sys.stderr)
+            print("   Nothing was written.", file=sys.stderr)
+            sys.exit(1)
+        print(f"📝 [RemAgent] Memory mirror written: {len(written)} file(s) in {out_dir}")
+        for path in written:
+            print(f"   • {os.path.basename(path)}")
+        return
+
     if args.command == "doctor":
         # Runs before any storage initialization: doctor is strictly
         # read-only and must never create the database it is auditing.
@@ -157,6 +187,15 @@ async def run_cli():
                 print(f"   - Pruned Noise Items: {result.pruned_noise_count}")
                 print(f"   - Token Savings: ~{result.estimated_token_savings} tokens")
                 print(f"   - Cognitive Reasoning: {result.reasoning_summary}")
+                if args.export_md is not None:
+                    out_dir = args.export_md or default_out_dir(args.db)
+                    try:
+                        written = export_markdown(db_path=args.db, agent_id=args.agent, out_dir=out_dir)
+                        print(f"📝 Memory mirror regenerated: {len(written)} file(s) in {out_dir}")
+                    except ExportError as exc:
+                        # The consolidation itself persisted; the mirror did not.
+                        print(f"❌ FAILED: consolidation succeeded but markdown export failed: {exc}", file=sys.stderr)
+                        sys.exit(1)
             else:
                 print("💤 No unconsolidated turns found. Agent memory is already fully consolidated.")
 

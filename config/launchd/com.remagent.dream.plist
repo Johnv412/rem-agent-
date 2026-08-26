@@ -12,7 +12,7 @@
     <array>
         <string>/bin/zsh</string>
         <string>-c</string>
-        <string>source /Users/test/.remagent/env; echo "--- $(date '+%Y-%m-%d %H:%M:%S') dream cycle ---"; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent dream --agent john --db /Users/test/.remagent/memory.db; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent doctor --agent john --db /Users/test/.remagent/memory.db</string>
+        <string>source /Users/test/.remagent/env; echo "--- $(date '+%Y-%m-%d %H:%M:%S') dream cycle ---"; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent dream --agent john --db /Users/test/.remagent/memory.db --export-md; /Library/Frameworks/Python.framework/Versions/3.11/bin/remagent doctor --agent john --db /Users/test/.remagent/memory.db</string>
     </array>
     <key>StartInterval</key>
     <integer>1800</integer>
