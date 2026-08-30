@@ -2,9 +2,9 @@
 
  # RemAgent 🧠💤
 
-**Zero-Vector Autonomous Memory Framework for AI Agents**
+**One memory across all your agents.**
 
-Powered by Google Gemini and modeled on biological sleep / REM memory consolidation.
+A zero-vector, local-first shared brain: the same consolidated memory, reachable from Claude Code, Gemini-powered agents, Hermes, any MCP host, or plain CLI. Modeled on biological sleep / REM memory consolidation.
 
 dreamengine.dev • remagent.dev
 
@@ -13,6 +13,23 @@ dreamengine.dev • remagent.dev
 -->
 
 ---
+
+## 🔌 One Config Line, Any MCP Host
+
+RemAgent ships an MCP server. One entry in any MCP-capable host — Claude Code, Gemini CLI, an IDE agent, your own framework — attaches it to the same shared memory:
+
+```json
+{
+  "mcpServers": {
+    "remagent": {
+      "command": "remagent-mcp",
+      "args": ["--db", "/absolute/path/to/memory.db", "--agent", "me"]
+    }
+  }
+}
+```
+
+Every host that points at the same database file shares one brain: `remagent_recall` injects the consolidated graph, `remagent_log` captures new facts, `remagent_dream` consolidates. Seven IDE windows, a CLI script, and a Python agent loop can all remember — and correct — the same things.
 
 ## ⚡ The Problem: Vector Databases Are Noisy, Brittle & Expensive
 
@@ -37,6 +54,19 @@ Those are excellent projects, and if you need hosted, multi-tenant, vector-hybri
 - **Small enough to audit.** One Python package, one database file, plain schemas.
 
 If your memory problem is "one developer / one team, long-running agents, facts that change" — that's what this is built for.
+
+## 🤝 And Claude Code's Native Auto Dream?
+
+Claude Code shipped Auto Dream in 2026: native background consolidation of its per-project markdown memory — merging duplicate notes, deleting contradicted ones, pruning stale entries. It's a genuinely good feature, it validates the sleep-consolidation metaphor, and if you only use Claude Code in one project, it may be all you need. RemAgent occupies the ground it deliberately doesn't:
+
+| | Claude Code Auto Dream | RemAgent |
+| --- | --- | --- |
+| **Reach** | Claude Code, per-project | One shared memory across Claude Code, Gemini, Hermes, any MCP host, CLI, and Python — cross-project if you point them at one DB |
+| **Memory form** | Markdown note files with a size-capped index | Structured entity–attribute facts with confidence scores and explicit `superseded_by` pointers — queryable, plus a generated markdown mirror for humans |
+| **Contradictions** | Contradicted notes are deleted during consolidation | Old facts are kept, marked inactive, and linked to their replacement; an enforced invariant guarantees an update never erases knowledge |
+| **Integrity** | Consolidation runs in the background; its internals aren't exposed for audit (as of this writing) | Every dream writes an audit row (what was added, what superseded what, the model's reasoning); `remagent doctor` self-audits the whole pipeline on demand |
+
+They compose rather than compete: `remagent init-claude` detects native auto-memory and says so — native keeps handling that repo's own notes while RemAgent runs the cross-agent shared brain on top.
 
 ## 🧬 How It Works: The REM Sleep Cycle
 
@@ -77,7 +107,7 @@ Read this before installing. RemAgent captures interaction turns — which for d
 - **What leaves your machine:** during a dream cycle, buffered turns are sent to the Gemini API for consolidation. That is the only network egress. If your sessions may contain secrets or client-confidential material, treat this the same way you'd treat any LLM API usage — and don't log what you can't send.
 - **Purging:** delete the database file, or use `remagent decay` to age out low-confidence facts. Superseded facts retain history until purged.
 - **Git:** the memory database and the markdown mirror (`remagent export --markdown`) are added to `.gitignore` by the `init-claude` scaffold. **Committing agent memory to git is opt-in** — it may contain sensitive session content (code, paths, client names), so only remove those ignore rules deliberately.
-- **Enterprise:** the `[firestore]` extra moves storage to Google Cloud Firestore under your own GCP project and IAM. Bring your own compliance posture; RemAgent doesn't add one for you.
+- **Scope:** single-node SQLite is the product today — one database file, one owner. The storage layer is a small adapter interface designed to extend to multi-tenant backends; an experimental Firestore adapter ships in the `[firestore]` extra, but treat anything beyond local SQLite as unproven until documented otherwise.
 
 ## 📦 Installation
 
@@ -93,7 +123,8 @@ pip install -e .
 # Claude Code terminal & IDE integration (MCP server + hooks)
 pip install -e ".[claude]"
 
-# Enterprise cloud installation with Google Cloud Firestore
+# Experimental Google Cloud Firestore storage adapter (single-node SQLite
+# is the supported product today)
 pip install -e ".[firestore]"
 ```
 

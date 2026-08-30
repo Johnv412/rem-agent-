@@ -6,9 +6,50 @@ with RemAgent's zero-vector memory lifecycle (SessionStart recall & Stop dream c
 
 import json
 import os
+import re
 import stat
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
+
+
+def detect_native_auto_memory(target_dir: str, home: Optional[Path] = None) -> Tuple[str, str]:
+    """
+    Best-effort detection of Claude Code's native Auto Memory / Auto Dream
+    (per-project markdown memory consolidation, shipped 2026).
+
+    Returns (state, detail) with state one of:
+      "disabled" — an explicit off-switch was found
+      "active"   — native memory files exist for this project
+      "unknown"  — no explicit signal either way (the feature defaults on
+                   but writes files lazily, so absence proves nothing)
+    """
+    home = home or Path.home()
+
+    if os.environ.get("CLAUDE_CODE_DISABLE_AUTO_MEMORY"):
+        return "disabled", "CLAUDE_CODE_DISABLE_AUTO_MEMORY is set in the environment"
+
+    # Project settings override global; read both before we scaffold anything.
+    for settings_path in (
+        Path(target_dir).resolve() / ".claude" / "settings.json",
+        home / ".claude" / "settings.json",
+    ):
+        try:
+            cfg = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if cfg.get("autoMemoryEnabled") is False:
+            return "disabled", f"autoMemoryEnabled=false in {settings_path}"
+
+    # Claude Code keys project memory dirs by a sanitized-path slug.
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(Path(target_dir).resolve()))
+    memory_md = home / ".claude" / "projects" / slug / "memory" / "MEMORY.md"
+    if memory_md.exists():
+        return "active", f"native memory files present at {memory_md.parent}"
+
+    return "unknown", (
+        "no explicit disable found; native auto-memory may be on by default "
+        "but has not written memory files for this project yet"
+    )
 
 
 def generate_claude_configuration(

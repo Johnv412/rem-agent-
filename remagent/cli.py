@@ -16,7 +16,7 @@ from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
 from remagent.governor import TokenBudgetGovernor
-from remagent.integrations.claude_hooks import generate_claude_configuration
+from remagent.integrations.claude_hooks import detect_native_auto_memory, generate_claude_configuration
 
 
 async def run_cli():
@@ -96,6 +96,8 @@ async def run_cli():
         return
 
     if args.command == "init-claude":
+        # Detect BEFORE scaffolding so pre-existing settings are what's read.
+        native_state, native_detail = detect_native_auto_memory(args.dir)
         results = generate_claude_configuration(
             target_dir=args.dir,
             db_path=args.db,
@@ -109,6 +111,15 @@ async def run_cli():
         print("   - SessionStart hook: Pre-loads active rules & knowledge into context.")
         print("   - Stop hook: Runs background REM sleep consolidation when work completes.")
         print("   - MCP server: Exposes remagent_recall, remagent_log, and remagent_dream tools.")
+        if native_state == "disabled":
+            print(f"\nℹ️  Native Claude Code auto-memory appears DISABLED ({native_detail}).")
+            print("   RemAgent will be the only memory layer for this repo.")
+        else:
+            qualifier = "is ACTIVE" if native_state == "active" else "may be active"
+            print(f"\nℹ️  Native Claude Code auto-memory (Auto Dream) {qualifier} ({native_detail}).")
+            print("   The two are complementary: native handles this repo's own markdown memory;")
+            print("   RemAgent adds a cross-agent shared brain on top (one database reachable from")
+            print("   Claude Code, Gemini, and any MCP host).")
         return
 
     if args.command == "soak":

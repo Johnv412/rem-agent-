@@ -21,7 +21,10 @@ from remagent.engine.synthesizer import DreamSynthesisError
 from remagent.schemas import Fact, OperationalRule, RawTurnLog, MemoryProfile
 from remagent.storage.sqlite import SQLiteStorageAdapter
 from remagent.integrations.claude_code import create_claude_mcp_server
-from remagent.integrations.claude_hooks import generate_claude_configuration
+from remagent.integrations.claude_hooks import (
+    detect_native_auto_memory,
+    generate_claude_configuration,
+)
 
 
 class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
@@ -222,6 +225,52 @@ class TestClaudeIntegrationSuite(unittest.IsolatedAsyncioTestCase):
             self.assertIn("skipped", status)
         gitignore_again = (Path(target_dir) / ".gitignore").read_text()
         self.assertEqual(gitignore, gitignore_again, "gitignore block must not duplicate")
+
+    # ------------------------------------------------------------------
+    # Native Auto Memory / Auto Dream detection (best-effort, honest tiers)
+    # ------------------------------------------------------------------
+
+    def test_native_detection_env_disable_wins(self):
+        target = os.path.join(self.temp_dir, "ws1")
+        os.makedirs(target, exist_ok=True)
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}):
+            state, detail = detect_native_auto_memory(target, home=Path(self.temp_dir) / "home")
+        self.assertEqual(state, "disabled")
+        self.assertIn("CLAUDE_CODE_DISABLE_AUTO_MEMORY", detail)
+
+    def test_native_detection_settings_disable(self):
+        target = os.path.join(self.temp_dir, "ws2")
+        home = Path(self.temp_dir) / "home2"
+        (home / ".claude").mkdir(parents=True)
+        (home / ".claude" / "settings.json").write_text('{"autoMemoryEnabled": false}')
+        os.makedirs(target, exist_ok=True)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("CLAUDE_CODE_DISABLE_AUTO_MEMORY", None)
+            state, detail = detect_native_auto_memory(target, home=home)
+        self.assertEqual(state, "disabled")
+        self.assertIn("autoMemoryEnabled", detail)
+
+    def test_native_detection_memory_files_present(self):
+        target = os.path.join(self.temp_dir, "ws3")
+        os.makedirs(target, exist_ok=True)
+        home = Path(self.temp_dir) / "home3"
+        import re as _re
+        slug = _re.sub(r"[^A-Za-z0-9]", "-", str(Path(target).resolve()))
+        mem_dir = home / ".claude" / "projects" / slug / "memory"
+        mem_dir.mkdir(parents=True)
+        (mem_dir / "MEMORY.md").write_text("# index\n")
+        os.environ.pop("CLAUDE_CODE_DISABLE_AUTO_MEMORY", None)
+        state, detail = detect_native_auto_memory(target, home=home)
+        self.assertEqual(state, "active")
+        self.assertIn("memory", detail)
+
+    def test_native_detection_unknown_when_no_signal(self):
+        target = os.path.join(self.temp_dir, "ws4")
+        os.makedirs(target, exist_ok=True)
+        os.environ.pop("CLAUDE_CODE_DISABLE_AUTO_MEMORY", None)
+        state, detail = detect_native_auto_memory(target, home=Path(self.temp_dir) / "home4")
+        self.assertEqual(state, "unknown")
+        self.assertIn("has not written memory files", detail)
 
     # ------------------------------------------------------------------
     # UserPromptSubmit turn-capture hook (functional, via subprocess)
