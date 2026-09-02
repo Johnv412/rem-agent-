@@ -12,7 +12,7 @@ import time
 import unittest
 from remagent.schemas import Fact, OperationalRule, RawTurnLog, MemoryProfile, DreamConsolidationResult
 from remagent.storage.sqlite import SQLiteStorageAdapter
-from remagent.governor import TokenBudgetGovernor
+from remagent.governor import GovernorBudgetError, TokenBudgetGovernor
 from remagent.decay import MemoryDecayEngine
 
 
@@ -108,10 +108,10 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Prefer dark mode", injection)
         self.assertNotIn("TOKEN BUDGET OVERFLOW", injection)
 
-    def test_token_budget_governor_p1_overflow_enforced_and_signaled(self):
-        # Failure path: P1 rules alone exceed max_tokens. The budget is a hard
-        # contract — the output must fit AND carry an explicit overflow signal,
-        # never silently blow past the ceiling.
+    def test_token_budget_governor_rules_overflow_raises_loudly(self):
+        # Rules are NEVER trimmed. If they alone exceed the budget, the
+        # governor must refuse loudly — a rule-less injection is worse than
+        # no injection.
         governor = TokenBudgetGovernor(default_max_tokens=80)
         rules = [
             OperationalRule(
@@ -125,12 +125,57 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         ]
         profile = MemoryProfile(agent_id="overflow_test", facts=[], rules=rules)
 
-        injection = governor.build_budgeted_prompt_injection(profile, max_tokens=80)
-        self.assertLessEqual(
-            governor.estimate_tokens(injection), 80,
-            "output must not exceed the token budget",
+        with self.assertRaises(GovernorBudgetError) as ctx:
+            governor.build_budgeted_prompt_injection(profile, max_tokens=80)
+        self.assertIn("never trimmed", str(ctx.exception))
+
+    def test_token_budget_governor_all_rules_present_facts_truncated(self):
+        # All rules (every priority) must appear; facts fill what's left and
+        # the cut is explicitly noted, with the output still under budget.
+        governor = TokenBudgetGovernor()
+        rules = [
+            OperationalRule(id="r1", category="operational_directive",
+                            rule="P1 unbreakable directive", rationale="", priority=1),
+            OperationalRule(id="r2", category="coding_standard",
+                            rule="P2 secondary standard", rationale="", priority=2),
+            OperationalRule(id="r3", category="architecture_heuristic",
+                            rule="P3 minor guideline", rationale="", priority=3),
+        ]
+        facts = [
+            Fact(id=f"f{i}", entity="Thing", attribute=f"attr_{i}",
+                 value="v" * 80, confidence=0.9)
+            for i in range(40)
+        ]
+        profile = MemoryProfile(agent_id="trunc_test", facts=facts, rules=rules)
+
+        budget = 300
+        injection = governor.build_budgeted_prompt_injection(profile, max_tokens=budget)
+        self.assertLessEqual(governor.estimate_tokens(injection), budget)
+        for r in rules:
+            self.assertIn(r.rule, injection, f"rule {r.id} must never be dropped")
+        self.assertIn("omitted by token budget", injection)
+        self.assertIn("Thing.attr_0", injection, "highest-value facts should fill remaining budget")
+
+    async def test_recall_cli_rules_overflow_exits_nonzero(self):
+        rules = [
+            OperationalRule(id=f"r{i}", category="operational_directive",
+                            rule=f"Long critical directive {i}: " + ("y" * 150),
+                            rationale="", priority=1)
+            for i in range(5)
+        ]
+        await self.storage.save_memory_profile(
+            MemoryProfile(agent_id="overflow_agent", rules=rules)
         )
-        self.assertIn("TOKEN BUDGET OVERFLOW", injection)
+        args = ["remagent", "recall", "--format", "injection", "--agent", "overflow_agent",
+                "--db", self.db_path, "--max-tokens", "40"]
+        proc = subprocess.run(
+            [sys.executable, "-c",
+             f"import sys; sys.argv = {args!r}; from remagent.cli import main; main()"],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("FAILED", proc.stderr)
+        self.assertIn("never trimmed", proc.stderr)
 
     def test_memory_decay_engine(self):
         decay_engine = MemoryDecayEngine(half_life_days=1.0, min_confidence_floor=0.3)

@@ -46,7 +46,7 @@ def create_claude_mcp_server(
     )
     async def remagent_recall(
         query_context: str = "",
-        max_tokens: int = 400,
+        max_tokens: int = 6000,
         agent_id: str = default_agent_id,
         db_path: str = default_db_path,
     ) -> str:

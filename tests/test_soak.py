@@ -125,6 +125,40 @@ class TestSoakVerdict(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 1)
         self.assertIn("no organic contradiction", report)
 
+    async def test_complete_rules_overflow_fails_with_named_reason(self):
+        """If the rules alone bust the default budget, the soak must fail
+        loudly with the governor's reason — never pass on a rule-less
+        injection."""
+        from remagent.schemas import OperationalRule
+        rules = [
+            OperationalRule(id=f"r{i}", category="operational_directive",
+                            rule=f"Massive directive {i}: " + ("z" * 900),
+                            rationale="", priority=1)
+            for i in range(30)  # ~30 * 900 chars >> 6000-token default budget
+        ]
+        old = Fact(entity="Vendor", attribute="price", value="$40", is_active=False)
+        new = Fact(entity="Vendor", attribute="price", value="$52")
+        old.superseded_by = new.id
+        await self.storage.save_memory_profile(
+            MemoryProfile(agent_id="john", facts=[old, new], rules=rules)
+        )
+        con = sqlite3.connect(self.db_path)
+        con.execute(
+            "INSERT INTO dream_audit_history (run_id, agent_id, added_facts_json, updated_rules_json, "
+            "contradiction_resolutions_json, pruned_noise_count, pruned_noise_reasons_json, "
+            "reasoning_summary, consolidated_turn_ids_json, timestamp, estimated_token_savings) "
+            "VALUES (?, 'john', '[]', '[]', ?, 0, '[]', 'real dream', '[]', ?, 0)",
+            (generate_uuid(), json.dumps([{"entity": "Vendor"}]), f"{START}T12:00:00+00:00"),
+        )
+        con.commit()
+        con.close()
+        self.write_config()
+        self.write_log([snapshot_line(f"2026-08-{d}") for d in range(25, 32)])
+        code, report = run_soak_report(config_path=self.cfg_path, today="2026-09-01")
+        self.assertEqual(code, 1)
+        self.assertIn("cannot be built", report)
+        self.assertIn("never trimmed", report)
+
     async def test_complete_bad_snapshot_fails_with_check_named(self):
         await self.seed_passing_memory()
         self.write_config()

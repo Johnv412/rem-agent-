@@ -23,7 +23,7 @@ import sqlite3
 from datetime import date, datetime
 from typing import List, Optional, Tuple
 
-from remagent.governor import TokenBudgetGovernor
+from remagent.governor import GovernorBudgetError, TokenBudgetGovernor
 from remagent.schemas import Fact, MemoryProfile, OperationalRule
 
 MIN_SNAPSHOTS = 5
@@ -151,12 +151,16 @@ def run_soak_report(
             rules=[OperationalRule(**r) for r in rules],
         )
         governor = TokenBudgetGovernor()
-        injection = governor.build_budgeted_prompt_injection(profile)
-        tokens = governor.estimate_tokens(injection) if injection else 0
-        if "TOKEN BUDGET OVERFLOW" in injection:
-            problems.append("the recall injection overflows the token budget (critical rules omitted)")
+        try:
+            injection = governor.build_budgeted_prompt_injection(profile)
+        except GovernorBudgetError as exc:
+            injection = ""
+            problems.append(f"the recall injection cannot be built — {exc}")
         else:
-            lines.append(f"   Injection: ~{tokens} tokens, within budget, no overflow.")
+            tokens = governor.estimate_tokens(injection) if injection else 0
+            lines.append(f"   Injection: ~{tokens} tokens, ALL rules included, within budget.")
+            if "omitted by token budget" in injection:
+                lines.append("   (some lower-priority facts trimmed to fit — acceptable and noted in the injection)")
     except Exception as exc:
         problems.append(f"could not build the recall injection: {exc}")
 

@@ -8,13 +8,21 @@ from typing import Any, Dict, List, Optional
 from remagent.schemas import Fact, OperationalRule, MemoryProfile
 
 
+class GovernorBudgetError(RuntimeError):
+    """
+    Raised when the active rules alone exceed the token budget. Rules are
+    never trimmed; callers must surface this loudly (non-zero exit) rather
+    than inject a rule-less context.
+    """
+
+
 class TokenBudgetGovernor:
     """
     Manages prompt token allocation for consolidated memory injections.
-    Prevents context blowup while guaranteeing critical P1 directives are never truncated.
+    Prevents context blowup while guaranteeing operational rules are never truncated.
     """
 
-    def __init__(self, default_max_tokens: int = 500, char_to_token_ratio: float = 3.8):
+    def __init__(self, default_max_tokens: int = 6000, char_to_token_ratio: float = 3.8):
         self.default_max_tokens = default_max_tokens
         self.char_to_token_ratio = char_to_token_ratio
 
@@ -61,55 +69,43 @@ class TokenBudgetGovernor:
         else:
             active_facts.sort(key=lambda f: f.confidence, reverse=True)
 
-        selected_rules: List[OperationalRule] = []
+        # Rules are the protected tier: ALL active rules go in first, in
+        # priority order, and are NEVER trimmed. If the rules alone cannot
+        # fit the budget, fail loudly — a silently rule-less injection is
+        # worse than no injection.
+        if active_rules:
+            rules_tokens = self.estimate_tokens(self._format_injection(active_rules, []))
+            if rules_tokens > budget:
+                raise GovernorBudgetError(
+                    f"{len(active_rules)} active rules alone require ~{rules_tokens} tokens, "
+                    f"exceeding the {budget}-token budget. Rules are never trimmed — "
+                    f"raise max_tokens, or prune/deduplicate rules."
+                )
+
+        selected_rules: List[OperationalRule] = list(active_rules)
         selected_facts: List[Fact] = []
 
-        # P1 rules are included first, but the budget is a hard contract:
-        # if the P1 rules alone cannot fit, include as many as fit and append
-        # an explicit overflow marker. Silently exceeding max_tokens would
-        # blow the caller's context budget.
-        p1_rules = [r for r in active_rules if r.priority == 1]
-        overflow_marker: Optional[str] = None
-        if p1_rules:
-            if self.estimate_tokens(self._format_injection(p1_rules, [])) <= budget:
-                selected_rules.extend(p1_rules)
-            else:
-                trial_marker = self._overflow_marker(len(p1_rules))
-                for rule in p1_rules:
-                    candidate_rules = selected_rules + [rule]
-                    candidate_text = self._format_injection(candidate_rules, [], trial_marker)
-                    if self.estimate_tokens(candidate_text) <= budget:
-                        selected_rules.append(rule)
-                omitted = len(p1_rules) - len(selected_rules)
-                overflow_marker = self._overflow_marker(omitted)
-
-        # Add relevant facts
+        # Facts fill the remaining budget, most valuable first; the omission
+        # note is included in every candidate check so it never busts the
+        # budget itself.
+        total_facts = len(active_facts)
         for fact in active_facts:
             candidate_facts = selected_facts + [fact]
-            candidate_text = self._format_injection(selected_rules, candidate_facts, overflow_marker)
+            trial_note = self._facts_omitted_note(total_facts - len(candidate_facts))
+            candidate_text = self._format_injection(selected_rules, candidate_facts, trial_note)
             if self.estimate_tokens(candidate_text) <= budget:
                 selected_facts.append(fact)
             else:
                 break
 
-        # Add secondary rules if space permits
-        for rule in active_rules:
-            if rule.priority > 1 and rule not in selected_rules:
-                candidate_rules = selected_rules + [rule]
-                candidate_text = self._format_injection(candidate_rules, selected_facts, overflow_marker)
-                if self.estimate_tokens(candidate_text) <= budget:
-                    selected_rules.append(rule)
-                else:
-                    break
-
-        return self._format_injection(selected_rules, selected_facts, overflow_marker)
+        note = self._facts_omitted_note(total_facts - len(selected_facts))
+        return self._format_injection(selected_rules, selected_facts, note)
 
     @staticmethod
-    def _overflow_marker(omitted_count: int) -> str:
-        return (
-            f"[!] TOKEN BUDGET OVERFLOW: {omitted_count} priority-1 rule(s) omitted; "
-            f"increase max_tokens to include all critical directives."
-        )
+    def _facts_omitted_note(omitted_count: int) -> Optional[str]:
+        if omitted_count <= 0:
+            return None
+        return f"(+{omitted_count} lower-priority fact(s) omitted by token budget)"
 
     def _format_injection(
         self,

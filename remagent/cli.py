@@ -15,7 +15,7 @@ from remagent.schemas import current_utc_iso
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
-from remagent.governor import TokenBudgetGovernor
+from remagent.governor import GovernorBudgetError, TokenBudgetGovernor
 from remagent.integrations.claude_hooks import detect_native_auto_memory, generate_claude_configuration
 
 
@@ -45,7 +45,7 @@ async def run_cli():
     recall_parser.add_argument("--format", choices=["injection", "json"], default="injection", help="Output format")
     recall_parser.add_argument("--query", default=None, help="Query context for fact relevance filtering")
     recall_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
-    recall_parser.add_argument("--max-tokens", type=int, default=500, help="Maximum token budget for prompt injection")
+    recall_parser.add_argument("--max-tokens", type=int, default=6000, help="Maximum token budget for prompt injection")
     recall_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
 
     # Command: log
@@ -237,11 +237,15 @@ async def run_cli():
                 }, indent=2))
             else:
                 governor = TokenBudgetGovernor(default_max_tokens=args.max_tokens)
-                injection = governor.build_budgeted_prompt_injection(
-                    profile=profile,
-                    query_context=args.query,
-                    max_tokens=args.max_tokens,
-                )
+                try:
+                    injection = governor.build_budgeted_prompt_injection(
+                        profile=profile,
+                        query_context=args.query,
+                        max_tokens=args.max_tokens,
+                    )
+                except GovernorBudgetError as exc:
+                    print(f"❌ FAILED: recall injection could not be built: {exc}", file=sys.stderr)
+                    sys.exit(1)
                 if injection:
                     print(injection)
                 else:
