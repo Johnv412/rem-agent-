@@ -19,6 +19,16 @@ from remagent.governor import GovernorBudgetError, TokenBudgetGovernor
 from remagent.integrations.claude_hooks import detect_native_auto_memory, generate_claude_configuration
 
 
+def _default_db() -> str:
+    """--db default: REMAGENT_DB env var wins, else remagent_memory.db in CWD."""
+    return os.environ.get("REMAGENT_DB", "remagent_memory.db")
+
+
+def _default_agent(fallback: str = "default_agent") -> str:
+    """--agent default: REMAGENT_AGENT env var wins, else the command's fallback."""
+    return os.environ.get("REMAGENT_AGENT", fallback)
+
+
 async def run_cli():
     parser = argparse.ArgumentParser(
         prog="remagent",
@@ -28,8 +38,8 @@ async def run_cli():
 
     # Command: dream
     dream_parser = subparsers.add_parser("dream", help="Trigger an immediate REM consolidation cycle")
-    dream_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    dream_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    dream_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    dream_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
     dream_parser.add_argument(
         "--export-md", nargs="?", const="", default=None, metavar="DIR",
         help="After a successful dream, regenerate the markdown mirror (default DIR: <db>_md)",
@@ -37,42 +47,42 @@ async def run_cli():
 
     # Command: status
     status_parser = subparsers.add_parser("status", help="Inspect active memory profile and consolidated facts")
-    status_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    status_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    status_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    status_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
 
     # Command: recall
     recall_parser = subparsers.add_parser("recall", help="Recall consolidated memory and active directives")
     recall_parser.add_argument("--format", choices=["injection", "json"], default="injection", help="Output format")
     recall_parser.add_argument("--query", default=None, help="Query context for fact relevance filtering")
-    recall_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    recall_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
     recall_parser.add_argument("--max-tokens", type=int, default=6000, help="Maximum token budget for prompt injection")
-    recall_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+    recall_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
 
     # Command: log
     log_parser = subparsers.add_parser("log", help="Append a raw interaction turn into the memory buffer")
     log_parser.add_argument("--role", choices=["user", "assistant", "system", "tool"], required=True, help="Turn role")
     log_parser.add_argument("--content", required=True, help="Turn message content")
     log_parser.add_argument("--session", default="default_session", help="Session ID")
-    log_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
+    log_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
 
     # Command: export
     export_parser = subparsers.add_parser("export", help="Export memory as a human-readable mirror")
     export_parser.add_argument("--markdown", action="store_true", help="Markdown format (currently the only format)")
-    export_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    export_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    export_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    export_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
     export_parser.add_argument("--out", default=None, help="Output directory (default: <db>_md next to the database)")
 
     # Command: decay
     decay_parser = subparsers.add_parser("decay", help="Apply Ebbinghaus temporal decay to stored facts")
-    decay_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    decay_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    decay_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    decay_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
     decay_parser.add_argument("--half-life-days", type=float, default=30.0, help="Confidence half-life in days")
     decay_parser.add_argument("--floor", type=float, default=0.20, help="Confidence floor below which facts are deactivated")
 
     # Command: doctor
     doctor_parser = subparsers.add_parser("doctor", help="Read-only self-audit of the memory pipeline")
-    doctor_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    doctor_parser.add_argument("--agent", default="default_agent", help="Agent identifier")
+    doctor_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    doctor_parser.add_argument("--agent", default=_default_agent(), help="Agent identifier (env: REMAGENT_AGENT)")
     doctor_parser.add_argument("--max-queue", type=int, default=100, help="Max acceptable unconsolidated turns")
     doctor_parser.add_argument("--max-dream-age-hours", type=float, default=24.0, help="Max hours since last dream when turns are queued")
     doctor_parser.add_argument("--json", action="store_true", help="Emit one JSON object instead of text")
@@ -85,8 +95,8 @@ async def run_cli():
     # Command: init-claude
     init_claude_parser = subparsers.add_parser("init-claude", help="Scaffold Claude Code hooks and settings.json")
     init_claude_parser.add_argument("--dir", default=".", help="Target workspace directory")
-    init_claude_parser.add_argument("--db", default="remagent_memory.db", help="SQLite database path")
-    init_claude_parser.add_argument("--agent", default="claude_code", help="Agent identifier")
+    init_claude_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
+    init_claude_parser.add_argument("--agent", default=_default_agent("claude_code"), help="Agent identifier (env: REMAGENT_AGENT)")
     init_claude_parser.add_argument("--force", action="store_true", help="Overwrite existing configuration and hooks")
 
     args = parser.parse_args()

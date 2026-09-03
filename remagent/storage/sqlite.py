@@ -5,7 +5,9 @@ Designed for zero-dependency standalone and local agent deployments.
 
 import asyncio
 import json
+import os
 import sqlite3
+import sys
 from typing import List, Optional
 from remagent.schemas import (
     Fact,
@@ -82,8 +84,19 @@ class SQLiteStorageAdapter(StorageAdapter):
             conn.commit()
 
     async def initialize(self) -> None:
+        # Creating a brand-new empty database must never be silent: a user
+        # pointed at the wrong path would otherwise see "no memories" and
+        # have no idea why. Silent empty is a fake-empty.
+        is_new = self.db_path != ":memory:" and not os.path.exists(self.db_path)
         async with self._lock:
             await asyncio.to_thread(self._sync_initialize)
+        if is_new:
+            print(
+                f"🆕 [RemAgent] Created a NEW EMPTY database at "
+                f"{os.path.abspath(self.db_path)} — if you expected existing "
+                f"memories, check your --db flag or the REMAGENT_DB env var.",
+                file=sys.stderr,
+            )
 
     def _sync_save_turn(self, turn: RawTurnLog) -> None:
         with self._get_connection() as conn:

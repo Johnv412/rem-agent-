@@ -156,6 +156,48 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         self.assertIn("omitted by token budget", injection)
         self.assertIn("Thing.attr_0", injection, "highest-value facts should fill remaining budget")
 
+    async def test_env_var_defaults_point_bare_commands_at_real_memory(self):
+        """REMAGENT_DB / REMAGENT_AGENT make bare `remagent status` (no flags,
+        any cwd) hit the real brain instead of creating a stray empty DB."""
+        await self.storage.save_memory_profile(MemoryProfile(
+            agent_id="envagent",
+            facts=[Fact(entity="Env", attribute="works", value="yes")],
+        ))
+        env = {**os.environ, "REMAGENT_DB": self.db_path, "REMAGENT_AGENT": "envagent"}
+        with tempfile.TemporaryDirectory() as elsewhere:
+            proc = subprocess.run(
+                [sys.executable, "-c",
+                 "import sys; sys.argv = ['remagent', 'status']; "
+                 "from remagent.cli import main; main()"],
+                capture_output=True, text=True, timeout=60, env=env, cwd=elsewhere,
+            )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        self.assertIn("envagent", proc.stdout)
+        self.assertIn("Env.works = yes", proc.stdout)
+        self.assertNotIn("Created a NEW EMPTY database", proc.stderr)
+
+    def test_new_empty_db_creation_is_loud_once(self):
+        """Creating a brand-new DB must print a loud notice; opening an
+        existing one must not. Silent empty is a fake-empty."""
+        ghost = os.path.join(tempfile.mkdtemp(), "fresh.db")
+
+        def run_status():
+            return subprocess.run(
+                [sys.executable, "-c",
+                 f"import sys; sys.argv = ['remagent', 'status', '--db', {ghost!r}]; "
+                 "from remagent.cli import main; main()"],
+                capture_output=True, text=True, timeout=60,
+            )
+
+        first = run_status()
+        self.assertEqual(first.returncode, 0, msg=first.stderr)
+        self.assertIn("Created a NEW EMPTY database", first.stderr)
+        self.assertIn(ghost, first.stderr)
+
+        second = run_status()
+        self.assertNotIn("Created a NEW EMPTY database", second.stderr,
+                         "notice must only fire when the file is actually new")
+
     async def test_recall_cli_rules_overflow_exits_nonzero(self):
         rules = [
             OperationalRule(id=f"r{i}", category="operational_directive",
