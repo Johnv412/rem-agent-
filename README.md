@@ -9,7 +9,7 @@ A zero-vector, local-first shared brain: the same consolidated memory, reachable
 dreamengine.dev • remagent.dev
 
 <!-- Once CI workflows are live, add the badge here:
-[![CI](https://github.com/Johnv412/rem-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Johnv412/rem-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml/badge.svg)](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml)
 -->
 
 ---
@@ -114,7 +114,7 @@ Read this before installing. RemAgent captures interaction turns — which for d
 > RemAgent is not yet published on PyPI. Install from source:
 
 ```bash
-git clone https://github.com/Johnv412/rem-agent.git
+git clone https://github.com/Johnv412/rem-agent-.git
 cd rem-agent
 
 # Standard installation with Gemini & SQLite
