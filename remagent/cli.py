@@ -34,6 +34,12 @@ async def run_cli():
         prog="remagent",
         description="RemAgent: Autonomous Zero-Vector Memory Framework for AI Agents",
     )
+    try:
+        from importlib.metadata import version as _pkg_version
+        _version = _pkg_version("remagent")
+    except Exception:
+        _version = "unknown"
+    parser.add_argument("--version", action="version", version=f"remagent {_version}")
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
 
     # Command: dream

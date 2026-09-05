@@ -8,9 +8,7 @@ A zero-vector, local-first shared brain: the same consolidated memory, reachable
 
 dreamengine.dev • remagent.dev
 
-<!-- Once CI workflows are live, add the badge here:
-[![CI](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml/badge.svg)](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml)
--->
+[![CI](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml/badge.svg)](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/remagent)](https://pypi.org/project/remagent/)
 
 ---
 
@@ -111,22 +109,19 @@ Read this before installing. RemAgent captures interaction turns — which for d
 
 ## 📦 Installation
 
-> RemAgent is not yet published on PyPI. Install from source:
-
 ```bash
-git clone https://github.com/Johnv412/rem-agent-.git
-cd rem-agent
-
 # Standard installation with Gemini & SQLite
-pip install -e .
+pip install remagent
 
 # Claude Code terminal & IDE integration (MCP server + hooks)
-pip install -e ".[claude]"
+pip install "remagent[claude]"
 
 # Experimental Google Cloud Firestore storage adapter (single-node SQLite
 # is the supported product today)
-pip install -e ".[firestore]"
+pip install "remagent[firestore]"
 ```
+
+Or from source: `git clone https://github.com/Johnv412/rem-agent-.git && cd rem-agent- && pip install -e ".[claude]"`
 
 Set your Gemini API key:
 
