@@ -109,6 +109,7 @@ Unlike noisy, brittle Vector RAG (which blindly chunks text and suffers from sem
 
 2. ENTITY FACT EXTRACTION & KNOWLEDGE GRAPH:
    - Extract discrete, definitive attributes about users, systems, project architectures, tech stacks, credentials policies, and environments.
+   - MANDATORY ENTITY REUSE: before introducing a new entity name, scan the EXISTING CONSOLIDATED KNOWLEDGE GRAPH for an entity that refers to the same real-world thing and REUSE its exact name (e.g. do not create "Commander" if "Commander Project" already exists, or "Vincent Agent" if "Vincent" exists). Same-thing-different-name splits break contradiction resolution. Reuse existing attribute names the same way.
    - Format: entity, attribute, value, confidence (0.0 - 1.0).
    - Never extract vague sentiments; focus on crisp ground-truth.
 

@@ -162,6 +162,15 @@ class TestSynthesizerSuccessPath(unittest.IsolatedAsyncioTestCase):
             await storage.close()
             os.remove(db_path)
 
+    def test_prompt_pins_entity_alias_directive(self):
+        """Entity-name drift broke supersession on real data (2026-09-03,
+        Commander vs Commander Project). The reuse directive must stay in
+        the dream prompt; this pins it against silent prompt regression.
+        (LLM compliance itself is asserted nightly by the live canary.)"""
+        from remagent.engine.synthesizer import DREAM_PROMPT_SYSTEM
+        self.assertIn("MANDATORY ENTITY REUSE", DREAM_PROMPT_SYSTEM)
+        self.assertIn("REUSE its exact name", DREAM_PROMPT_SYSTEM)
+
     async def test_unparseable_response_raises_not_fabricates(self):
         s = _synthesizer_with_fake("this is not json")
         with self.assertRaises(DreamSynthesisError):

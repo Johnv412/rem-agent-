@@ -81,8 +81,17 @@ async def run() -> None:
                f.attribute.lower() == "last_consolidated_turns_count" for f in profile.facts):
             fail("fabricated Session.last_consolidated_turns_count fact present")
 
+        # Entity-alias behavior: both dreams must file the price facts under
+        # ONE entity name — a split (e.g. "Vendor" vs "Vendor Pricing") is
+        # exactly the drift that evades contradiction resolution.
+        price_entities = {f.entity for f in profile.facts
+                          if "$40" in str(f.value) or "$52" in str(f.value)}
+        if len(price_entities) != 1:
+            fail(f"entity drift: price facts split across {sorted(price_entities)}")
+
         print("✅ CANARY PASSED: live Gemini consolidation + supersession verified "
-              f"($40 inactive, superseded_by={old[0].superseded_by[:8]}…; $52 active)")
+              f"($40 inactive, superseded_by={old[0].superseded_by[:8]}…; $52 active; "
+              f"single entity {price_entities.pop()!r})")
     finally:
         await storage.close()
         os.remove(db_path)
