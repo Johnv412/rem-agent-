@@ -25,6 +25,38 @@ class CheckResult:
     detail: str
 
 
+def find_erasure_orphans(facts: List[dict]) -> List[str]:
+    """
+    A superseded fact is healthy if following its superseded_by chain reaches
+    an ACTIVE fact (entity renames re-home the chain legitimately), or — as a
+    legacy fallback for run-id-valued superseded_by — if an active fact still
+    exists for the same entity/attribute pair. Anything else is erased memory.
+    """
+    by_id = {f.get("id"): f for f in facts}
+    active_pairs = {
+        (f["entity"].lower(), f["attribute"].lower()) for f in facts if f.get("is_active")
+    }
+    orphans = []
+    for f in facts:
+        if f.get("is_active") or not f.get("superseded_by"):
+            continue
+        ok, seen, cur = False, set(), f
+        while cur is not None and cur.get("superseded_by") and cur["superseded_by"] not in seen:
+            seen.add(cur["superseded_by"])
+            nxt = by_id.get(cur["superseded_by"])
+            if nxt is None:
+                break
+            if nxt.get("is_active"):
+                ok = True
+                break
+            cur = nxt
+        if not ok and (f["entity"].lower(), f["attribute"].lower()) in active_pairs:
+            ok = True
+        if not ok:
+            orphans.append(f"{f['entity']}.{f['attribute']}")
+    return sorted(set(orphans))
+
+
 def _key_check() -> CheckResult:
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
         return CheckResult("api_key", True, "GEMINI_API_KEY present in environment")
@@ -133,20 +165,10 @@ def run_doctor(
             else f"{fb_audits} fallback audit row(s), {len(fb_facts)} fabricated fact(s)",
         ))
 
-        # 4. Erasure invariant at rest: a superseded fact must have an active
-        # replacement. Decayed facts (superseded_by null) are legitimately
-        # inactive without one.
-        active = {
-            (f["entity"].lower(), f["attribute"].lower())
-            for f in facts if f.get("is_active")
-        }
-        violations = sorted({
-            f"{f['entity']}.{f['attribute']}"
-            for f in facts
-            if not f.get("is_active")
-            and f.get("superseded_by")
-            and (f["entity"].lower(), f["attribute"].lower()) not in active
-        })
+        # 4. Erasure invariant at rest: a superseded fact must lead (via its
+        # supersession chain) to an active fact. Decayed facts (superseded_by
+        # null) are legitimately inactive without one.
+        violations = find_erasure_orphans(facts)
         results.append(CheckResult(
             "no_erasure", not violations,
             "clean" if not violations

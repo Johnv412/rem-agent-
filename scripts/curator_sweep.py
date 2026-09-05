@@ -188,22 +188,11 @@ def apply_plan(conn, agent, facts, rules, plan):
 
     facts.extend(new_facts)
 
-    # Invariant: every superseded fact has an active same-entity/attr successor.
-    active_pairs = {(f["entity"].lower(), f["attribute"].lower())
-                    for f in facts if f.get("is_active")}
-    orphans = [f"{f['entity']}.{f['attribute']}" for f in facts
-               if not f.get("is_active") and f.get("superseded_by")
-               and (f["entity"].lower(), f["attribute"].lower()) not in active_pairs]
-    # Facts merged AWAY from an alias legitimately have their successor under
-    # the canonical entity — check by successor id instead for those.
-    real_orphans = []
-    for f in facts:
-        if f.get("is_active") or not f.get("superseded_by"):
-            continue
-        succ = facts_by_id.get(f["superseded_by"]) or next(
-            (n for n in new_facts if n["id"] == f["superseded_by"]), None)
-        if succ is None or not succ.get("is_active"):
-            real_orphans.append(f"{f['entity']}.{f['attribute']}")
+    # Invariant: every superseded fact must lead (via its supersession chain)
+    # to an active fact — chain-aware, shared with doctor.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from remagent.doctor import find_erasure_orphans
+    real_orphans = find_erasure_orphans(facts)
     if real_orphans:
         print(f"FAILED invariant: superseded facts without active successor: {real_orphans}",
               file=sys.stderr)

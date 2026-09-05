@@ -123,6 +123,21 @@ class TestDoctor(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("superseded without active replacement", proc.stdout)
 
+    async def test_supersession_chain_across_entity_rename_is_clean(self):
+        """Curator entity merges re-home facts: old fact -> moved fact ->
+        new fact under the canonical entity. The erasure check must follow
+        the chain, not just match entity/attribute pairs."""
+        new = Fact(entity="Commander", attribute="worker_status", value="proven")
+        moved = Fact(entity="Commander Project", attribute="worker_status",
+                     value="proven", is_active=False, superseded_by=new.id)
+        old = Fact(entity="Commander Project", attribute="worker_status",
+                   value="no workers", is_active=False, superseded_by=moved.id)
+        profile = MemoryProfile(agent_id="a", facts=[old, moved, new])
+        profile.last_dream_at = current_utc_iso()
+        await self.storage.save_memory_profile(profile)
+        proc = run_doctor_cli(self.db_path)
+        self.assertEqual(proc.returncode, 0, msg=proc.stdout)
+
     async def test_decayed_without_replacement_is_fine(self):
         profile = MemoryProfile(
             agent_id="a",

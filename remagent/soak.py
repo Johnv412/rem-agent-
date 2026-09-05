@@ -133,12 +133,8 @@ def run_soak_report(
             "on real usage. Extend the soak, or genuinely correct one of your stored facts and re-check."
         )
     else:
-        active = {(f["entity"].lower(), f["attribute"].lower()) for f in facts if f.get("is_active")}
-        orphans = [
-            f"{f['entity']}.{f['attribute']}" for f in facts
-            if not f.get("is_active") and f.get("superseded_by")
-            and (f["entity"].lower(), f["attribute"].lower()) not in active
-        ]
+        from remagent.doctor import find_erasure_orphans
+        orphans = find_erasure_orphans(facts)
         if orphans:
             problems.append(f"supersession left facts with no active replacement: {', '.join(sorted(set(orphans)))}")
 
