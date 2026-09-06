@@ -17,6 +17,10 @@ keywords = [
     "memory",
     "zero-vector",
     "gemini",
+    "anthropic",
+    "claude",
+    "openai",
+    "xai",
     "cognitive-architecture",
     "hermes-agent",
     "rag-alternative",
@@ -39,6 +43,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# LLM providers for the dream synthesizer. google-genai stays a BASE dependency
+# for 1.x so `pip install remagent` + GEMINI_API_KEY keeps working; [gemini] is
+# an alias extra for forward compatibility. xAI uses the [openai] extra.
+gemini = [
+    "google-genai>=2.4.0",
+]
+anthropic = [
+    "anthropic>=1.0.0",
+]
+openai = [
+    "openai>=1.40.0",
+]
 firestore = [
     "google-cloud-firestore>=2.14.0",
 ]
@@ -46,6 +62,9 @@ claude = [
     "mcp>=1.0.0",
 ]
 all = [
+    "remagent[gemini]",
+    "remagent[anthropic]",
+    "remagent[openai]",
     "remagent[firestore]",
     "remagent[claude]",
 ]

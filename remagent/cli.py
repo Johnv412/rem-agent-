@@ -12,6 +12,8 @@ from remagent.decay import MemoryDecayEngine
 from remagent.doctor import run_doctor
 from remagent.export import ExportError, default_out_dir, export_markdown
 from remagent.schemas import current_utc_iso
+from remagent.engine.errors import ProviderConfigError
+from remagent.engine.providers import make_backend, resolve_provider
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
@@ -190,13 +192,25 @@ async def run_cli():
             sys.exit(1)
         return
 
+    synthesizer = None
+    provider = None
+    if args.command == "dream":
+        # Resolve the LLM provider before touching storage so a missing key or
+        # missing SDK extra is one line on stderr, exit 1, no traceback.
+        try:
+            provider = resolve_provider()
+            backend = make_backend(provider)
+        except ProviderConfigError as exc:
+            print(f"❌ FAILED: {exc}", file=sys.stderr)
+            sys.exit(1)
+        synthesizer = DreamSynthesizer(provider=provider, backend=backend)
+
     storage = SQLiteStorageAdapter(db_path=args.db)
     await storage.initialize()
 
     try:
         if args.command == "dream":
-            print("🧠 [RemAgent] Initiating REM Sleep Consolidation Cycle...")
-            synthesizer = DreamSynthesizer()
+            print(f"🧠 [RemAgent] Initiating REM Sleep Consolidation Cycle via {provider.provider} ({provider.model})...")
             daemon = DreamDaemon(storage=storage, synthesizer=synthesizer, agent_id=args.agent)
             try:
                 result = await daemon.consolidate_now()

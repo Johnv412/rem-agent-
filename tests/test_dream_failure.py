@@ -35,6 +35,11 @@ from remagent.schemas import (
 )
 from remagent.storage.sqlite import SQLiteStorageAdapter
 
+PROVIDER_ENV_VARS = (
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "XAI_API_KEY",
+    "REMAGENT_PROVIDER", "REMAGENT_MODEL",
+)
+
 
 class _StubSynthesizer:
     """Returns a canned DreamConsolidationResult without calling Gemini."""
@@ -70,7 +75,7 @@ class TestDreamFailurePaths(unittest.IsolatedAsyncioTestCase):
         )
         await self.storage.close()
 
-        env = {k: v for k, v in os.environ.items() if k not in ("GEMINI_API_KEY", "GOOGLE_API_KEY")}
+        env = {k: v for k, v in os.environ.items() if k not in PROVIDER_ENV_VARS}
         proc = subprocess.run(
             [
                 sys.executable,
@@ -107,7 +112,7 @@ class TestDreamFailurePaths(unittest.IsolatedAsyncioTestCase):
     # ------------------------------------------------------------------
 
     async def test_synthesizer_missing_key_raises(self):
-        saved = {k: os.environ.pop(k, None) for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY")}
+        saved = {k: os.environ.pop(k, None) for k in PROVIDER_ENV_VARS}
         try:
             synthesizer = DreamSynthesizer(api_key=None)
             with self.assertRaises(DreamSynthesisError):

@@ -57,13 +57,41 @@ def find_erasure_orphans(facts: List[dict]) -> List[str]:
     return sorted(set(orphans))
 
 
-def _key_check() -> CheckResult:
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-        return CheckResult("api_key", True, "GEMINI_API_KEY present in environment")
-    return CheckResult(
-        "api_key", False,
-        "GEMINI_API_KEY is not set — dreams will fail (honestly, but they will fail)",
+def _provider_checks() -> List[CheckResult]:
+    """Active provider, which keys are present (names only), and whether the
+    provider's SDK extra is importable. Never prints a secret."""
+    from remagent.engine.errors import ProviderConfigError
+    from remagent.engine.providers import (
+        ALL_KEY_NAMES, EXTRA_NAME, SDK_MODULE, present_keys, resolve_provider, sdk_importable,
     )
+    results: List[CheckResult] = []
+    keys = present_keys()
+    if keys:
+        results.append(CheckResult("api_key", True, f"present: {', '.join(keys)}"))
+    else:
+        results.append(CheckResult(
+            "api_key", False,
+            "no provider key set — set one of " + ", ".join(ALL_KEY_NAMES)
+            + " (dreams will fail honestly, but they will fail)",
+        ))
+    try:
+        cfg = resolve_provider()
+    except ProviderConfigError as exc:
+        results.append(CheckResult("provider", False, f"no active provider: {exc}"))
+        return results
+    detail = f"{cfg.provider} via {cfg.key_env}, model {cfg.model}"
+    if cfg.base_url:
+        detail += f", base_url {cfg.base_url}"
+    results.append(CheckResult("provider", True, detail))
+    module = SDK_MODULE[cfg.backend]
+    if sdk_importable(cfg.backend):
+        results.append(CheckResult("provider_sdk", True, f"{module} importable"))
+    else:
+        results.append(CheckResult(
+            "provider_sdk", False,
+            f'{module} not installed — pip install "remagent[{EXTRA_NAME[cfg.backend]}]"',
+        ))
+    return results
 
 
 def _parse_ts(ts: Union[str, float, int, None]) -> Optional[float]:
@@ -102,7 +130,7 @@ def run_doctor(
     db = os.path.expanduser(db_path)
 
     if require_key:
-        results.append(_key_check())
+        results.extend(_provider_checks())
 
     # 1. DB exists and is structurally sound (read-only open: never creates).
     if not os.path.exists(db):

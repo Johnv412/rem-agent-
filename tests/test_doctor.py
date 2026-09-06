@@ -19,8 +19,14 @@ import unittest
 from remagent.schemas import Fact, MemoryProfile, RawTurnLog, current_utc_iso, generate_uuid
 from remagent.storage.sqlite import SQLiteStorageAdapter
 
-KEYED_ENV = {**os.environ, "GEMINI_API_KEY": "doctor-test-key"}
-KEYLESS_ENV = {k: v for k, v in os.environ.items() if k not in ("GEMINI_API_KEY", "GOOGLE_API_KEY")}
+KEYED_ENV = {**{k: v for k, v in os.environ.items() if k not in (
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "XAI_API_KEY", "REMAGENT_PROVIDER", "REMAGENT_MODEL")},
+    "GEMINI_API_KEY": "doctor-test-key"}
+PROVIDER_ENV_VARS = (
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "XAI_API_KEY",
+    "REMAGENT_PROVIDER", "REMAGENT_MODEL",
+)
+KEYLESS_ENV = {k: v for k, v in os.environ.items() if k not in PROVIDER_ENV_VARS}
 
 
 def run_doctor_cli(db_path: str, *extra_args: str, env=None) -> subprocess.CompletedProcess:
@@ -68,7 +74,7 @@ class TestDoctor(unittest.IsolatedAsyncioTestCase):
         self.assertIn("timestamp", data)
         self.assertEqual(
             {c["name"] for c in data["checks"]},
-            {"api_key", "database", "queue", "no_fallback", "no_erasure"},
+            {"api_key", "provider", "provider_sdk", "database", "queue", "no_fallback", "no_erasure"},
         )
 
     async def test_queue_backlog_fails(self):
