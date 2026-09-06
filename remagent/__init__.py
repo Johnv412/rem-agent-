@@ -1,6 +1,7 @@
 """
 RemAgent: Autonomous Zero-Vector Memory Framework for AI Agents.
-Powered by Google Gemini and biological sleep/REM consolidation principles.
+Built on biological sleep/REM consolidation principles; consolidation runs on
+Gemini, Anthropic, OpenAI-compatible, or xAI (see remagent.engine.providers).
 """
 
 from remagent.schemas import (

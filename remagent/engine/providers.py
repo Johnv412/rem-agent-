@@ -53,7 +53,7 @@ BACKEND_FOR_PROVIDER = {
 # and the installed SDK model literals. See the provider report for sources.
 DEFAULT_MODELS = {
     "gemini": "gemini-2.5-flash",
-    "anthropic": "claude-opus-5",
+    "anthropic": "claude-sonnet-5",   # claude-opus-5 available via REMAGENT_MODEL
     "openai": "gpt-6-astra",
     "xai": "grok-4.6",
 }

@@ -166,9 +166,15 @@ class TestProviderSelection(unittest.TestCase):
         self.assertEqual(cfg.base_url, "http://localhost:11434/v1")
         self.assertIsNone(resolve_provider({"OPENAI_API_KEY": "o"}).base_url)
 
+    def test_default_models_pinned(self):
+        self.assertEqual(resolve_provider({"ANTHROPIC_API_KEY": "a"}).model, "claude-sonnet-5")
+        self.assertEqual(resolve_provider({"OPENAI_API_KEY": "o"}).model, "gpt-6-astra")
+        self.assertEqual(resolve_provider({"XAI_API_KEY": "x"}).model, "grok-4.6")
+        self.assertEqual(resolve_provider({"GEMINI_API_KEY": "g"}).model, "gemini-2.5-flash")
+
     def test_remagent_model_overrides_default(self):
-        cfg = resolve_provider({"ANTHROPIC_API_KEY": "a", "REMAGENT_MODEL": "claude-sonnet-5"})
-        self.assertEqual(cfg.model, "claude-sonnet-5")
+        cfg = resolve_provider({"ANTHROPIC_API_KEY": "a", "REMAGENT_MODEL": "claude-opus-5"})
+        self.assertEqual(cfg.model, "claude-opus-5")
 
     def test_google_api_key_alias_still_selects_gemini(self):
         cfg = resolve_provider({"GOOGLE_API_KEY": "g"})

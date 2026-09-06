@@ -142,10 +142,10 @@ With no `REMAGENT_PROVIDER` set, RemAgent auto-detects the first key present in 
 | Variable | Purpose |
 |---|---|
 | `REMAGENT_PROVIDER` | Force a provider: `gemini`, `anthropic`, `openai`, or `xai`. Overrides auto-detection. |
-| `REMAGENT_MODEL` | Override the selected provider's default model (e.g. `claude-sonnet-5`, `gpt-5.5`, `grok-4.5`, `gemini-2.5-pro`). |
+| `REMAGENT_MODEL` | Override the selected provider's default model (e.g. `claude-opus-5`, `gpt-5.5`, `grok-4.5`, `gemini-2.5-pro`). |
 | `OPENAI_BASE_URL` | Point the `openai` provider at any OpenAI-compatible server (Ollama, vLLM, LM Studio, a proxy). Applies to `openai` only — `xai` is always `https://api.x.ai/v1`. |
 
-Default models: Gemini `gemini-2.5-flash`, Anthropic `claude-opus-5`, OpenAI `gpt-6-astra`, xAI `grok-4.6`.
+Default models: Gemini `gemini-2.5-flash`, Anthropic `claude-sonnet-5`, OpenAI `gpt-6-astra`, xAI `grok-4.6`. Set `REMAGENT_MODEL=claude-opus-5` (or any other model id) to override.
 
 xAI is not a separate backend: it is the OpenAI-compatible backend with `XAI_API_KEY` and the xAI base URL, so it needs the `[openai]` extra and nothing else.
 
