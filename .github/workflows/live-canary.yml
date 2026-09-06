@@ -26,4 +26,37 @@ jobs:
       - name: Run live canary (real Gemini, throwaway DB)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REMAGENT_PROVIDER: gemini
+        run: python scripts/live_canary.py
+
+  anthropic-canary:
+    # Same $40 -> $52 supersession check against the real Anthropic API.
+    # Skips (green, not red) when the ANTHROPIC_API_KEY secret is not configured.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for ANTHROPIC_API_KEY secret
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY secret is not configured — Anthropic canary skipped (not failed)."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.present == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.key.outputs.present == 'true'
+        with:
+          python-version: "3.11"
+      - name: Install package with anthropic extra
+        if: steps.key.outputs.present == 'true'
+        run: pip install -e ".[anthropic]"
+      - name: Run live canary (real Anthropic, throwaway DB)
+        if: steps.key.outputs.present == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REMAGENT_PROVIDER: anthropic
         run: python scripts/live_canary.py

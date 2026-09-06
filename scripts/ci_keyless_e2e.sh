@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Keyless E2E: fresh venv install + CLI flows must behave HONESTLY without
-# a Gemini key — log works, dream fails with exit 1 preserving the queue,
+# any provider key (Gemini, Anthropic, OpenAI, xAI) — log works, dream fails with exit 1 preserving the queue,
 # doctor flags the missing key, decay (which needs no key) works.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SB="$(mktemp -d)"
 trap 'rm -rf "$SB"' EXIT
-unset GEMINI_API_KEY GOOGLE_API_KEY || true
+unset GEMINI_API_KEY GOOGLE_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY XAI_API_KEY REMAGENT_PROVIDER REMAGENT_MODEL || true
 
 python3 -m venv "$SB/venv"
 cd "$REPO"

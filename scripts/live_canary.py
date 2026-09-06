@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Live-Gemini canary: proves the real API still consolidates and supersedes.
+Live canary: proves the real provider API still consolidates and supersedes.
 
 This exists because mocked tests once stayed green while the engine was 100%
 broken (the SDK rejected our schema client-side and a fallback fabricated
 success). The canary runs the canonical $40 -> $52 supersession against the
-REAL Gemini API in a throwaway DB and exits non-zero on any miss:
+REAL provider API (Gemini by default; any provider via REMAGENT_PROVIDER /
+the usual key autodetect) in a throwaway DB and exits non-zero on any miss:
 
   1. log "$40/unit"  -> dream #1 must add an active price fact
   2. log "$52/unit"  -> dream #2 must leave the old fact inactive with
      superseded_by = the new active fact's id
   3. zero fallback fingerprints anywhere
 
-Requires GEMINI_API_KEY. Never touches any real memory DB.
+Requires a provider key (GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY or
+XAI_API_KEY). Never touches any real memory DB.
 """
 
 import asyncio
@@ -21,6 +23,8 @@ import sys
 import tempfile
 
 from remagent.daemon import DreamDaemon
+from remagent.engine.errors import ProviderConfigError
+from remagent.engine.providers import make_backend, resolve_provider
 from remagent.engine.synthesizer import DreamSynthesizer
 from remagent.schemas import RawTurnLog
 from remagent.storage.sqlite import SQLiteStorageAdapter
@@ -34,22 +38,26 @@ def fail(msg: str) -> None:
 
 
 async def run() -> None:
-    if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
-        fail("GEMINI_API_KEY is not set — the canary needs the real API.")
+    try:
+        provider = resolve_provider()
+        backend = make_backend(provider)
+    except ProviderConfigError as exc:
+        fail(f"no usable provider — the canary needs a real API key: {exc}")
+    print(f"canary provider: {provider.provider} (model {provider.model}, key {provider.key_env})")
 
     fd, db_path = tempfile.mkstemp(suffix=".canary.db")
     os.close(fd)
     storage = SQLiteStorageAdapter(db_path=db_path)
     await storage.initialize()
     try:
-        daemon = DreamDaemon(storage=storage, synthesizer=DreamSynthesizer(), agent_id="canary")
+        daemon = DreamDaemon(storage=storage, synthesizer=DreamSynthesizer(provider=provider, backend=backend), agent_id="canary")
 
         await storage.save_turn(RawTurnLog(role="user", content="vendor price is $40/unit"))
         r1 = await daemon.consolidate_now()
         if r1 is None:
             fail("dream #1 returned None despite a queued turn")
         if r1.reasoning_summary.startswith(FALLBACK_PREFIX):
-            fail("dream #1 hit the fallback fingerprint — Gemini was not reached")
+            fail("dream #1 hit the fallback fingerprint — the provider was not reached")
         print(f"dream #1 ok: {len(r1.added_facts)} fact(s) — {r1.reasoning_summary[:100]}")
 
         await storage.save_turn(RawTurnLog(role="user", content="vendor price is now $52/unit"))
@@ -57,7 +65,7 @@ async def run() -> None:
         if r2 is None:
             fail("dream #2 returned None despite a queued turn")
         if r2.reasoning_summary.startswith(FALLBACK_PREFIX):
-            fail("dream #2 hit the fallback fingerprint — Gemini was not reached")
+            fail("dream #2 hit the fallback fingerprint — the provider was not reached")
         print(f"dream #2 ok: {len(r2.added_facts)} fact(s), "
               f"{len(r2.contradiction_resolutions)} contradiction(s) — {r2.reasoning_summary[:100]}")
 
@@ -89,7 +97,7 @@ async def run() -> None:
         if len(price_entities) != 1:
             fail(f"entity drift: price facts split across {sorted(price_entities)}")
 
-        print("✅ CANARY PASSED: live Gemini consolidation + supersession verified "
+        print(f"✅ CANARY PASSED: live {provider.provider} consolidation + supersession verified "
               f"($40 inactive, superseded_by={old[0].superseded_by[:8]}…; $52 active; "
               f"single entity {price_entities.pop()!r})")
     finally:
