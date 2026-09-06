@@ -6,8 +6,6 @@
 
 A zero-vector, local-first shared brain: the same consolidated memory, reachable from Claude Code, Gemini-powered agents, Hermes, any MCP host, or plain CLI. Modeled on biological sleep / REM memory consolidation.
 
-dreamengine.dev • remagent.dev
-
 [![CI](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml/badge.svg)](https://github.com/Johnv412/rem-agent-/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/remagent)](https://pypi.org/project/remagent/)
 
 ---
@@ -209,8 +207,8 @@ RemAgent has native support for Claude Code (Anthropic's agentic CLI). Developer
 ### 2-Step Setup
 
 ```bash
-# 1. Install RemAgent with Claude MCP support (from a clone of this repo)
-pip install -e ".[claude]"
+# 1. Install RemAgent with Claude MCP support
+pip install "remagent[claude]"
 
 # 2. Scaffold .claude/settings.json and lifecycle hooks
 remagent init-claude
@@ -306,11 +304,11 @@ Every fact carries provenance (where it came from), a supersession chain (what r
 
 ## 🖥️ Demo Dashboard
 
-The repo contains a web dashboard (Vite + React + Express, `npm run dev`) that visualizes the dream cycle. **It is a demo playground running on seeded, in-memory simulation data** — not a live view of a real RemAgent database. Its Gemini-backed features (consolidation, agent chat) require `GEMINI_API_KEY` and return explicit errors without it.
+The repo contains a web dashboard (Vite + React + Express, `npm run dev`) that visualizes the dream cycle. **It is a demo playground running on seeded, in-memory simulation data** — not a live view of a real RemAgent database. Its Gemini-backed features (consolidation, agent chat) require `GEMINI_API_KEY` and return explicit errors without it. A hosted instance runs on Cloud Run for demo purposes; it resets on redeploy and shares no data with your local installs.
 
 ## 🗺️ Roadmap
 
-- [ ] PyPI release (v1.0.0 — pending soak validation)
+- [x] PyPI release (`pip install remagent`)
 - [ ] Additional LLM providers for the synthesizer (Claude, OpenAI-compatible)
 - [ ] Global (machine-wide) Claude Code hook install as a first-class command
 - [ ] Team-shared memory stores with per-agent namespaces
