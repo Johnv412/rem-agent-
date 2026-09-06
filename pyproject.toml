@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "remagent"
 version = "1.0.1"
-description = "Autonomous Zero-Vector Memory Framework for AI Agents powered by Google Gemini & Biological REM Consolidation"
+description = "Autonomous Zero-Vector Memory Framework for AI Agents with Biological REM Consolidation (Gemini, Anthropic, OpenAI-compatible, xAI)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }

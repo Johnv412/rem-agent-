@@ -100,7 +100,7 @@ A note on cadence: consolidation benefits from seeing *batches* of sessions. Dre
 Read this before installing. RemAgent captures interaction turns — which for developers can include code, file paths, client names, and anything else you type.
 
 - **What's stored:** raw turns and consolidated facts, in a local SQLite database (`memory.db`) you own. Nothing is stored by RemAgent anywhere else.
-- **What leaves your machine:** during a dream cycle, buffered turns are sent to the Gemini API for consolidation. That is the only network egress. If your sessions may contain secrets or client-confidential material, treat this the same way you'd treat any LLM API usage — and don't log what you can't send.
+- **What leaves your machine:** during a dream cycle, buffered turns are sent to your selected LLM provider (Gemini, Anthropic, OpenAI-compatible, or xAI) for consolidation. That is the only network egress. If your sessions may contain secrets or client-confidential material, treat this the same way you'd treat any LLM API usage — and don't log what you can't send.
 - **Purging:** delete the database file, or use `remagent decay` to age out low-confidence facts. Superseded facts retain history until purged.
 - **Git:** the memory database and the markdown mirror (`remagent export --markdown`) are added to `.gitignore` by the `init-claude` scaffold. **Committing agent memory to git is opt-in** — it may contain sensitive session content (code, paths, client names), so only remove those ignore rules deliberately.
 - **Scope:** single-node SQLite is the product today — one database file, one owner. The storage layer is a small adapter interface designed to extend to multi-tenant backends; an experimental Firestore adapter ships in the `[firestore]` extra, but treat anything beyond local SQLite as unproven until documented otherwise.
@@ -108,8 +108,13 @@ Read this before installing. RemAgent captures interaction turns — which for d
 ## 📦 Installation
 
 ```bash
-# Standard installation with Gemini & SQLite
+# Standard installation (SQLite + Gemini support included)
 pip install remagent
+
+# Add an LLM provider for the dream synthesizer (pick the one you have a key for)
+pip install "remagent[anthropic]"   # Anthropic Claude
+pip install "remagent[openai]"      # OpenAI, any OpenAI-compatible server, and xAI (Grok)
+pip install "remagent[gemini]"      # Google Gemini (alias — already in the base install for 1.x)
 
 # Claude Code terminal & IDE integration (MCP server + hooks)
 pip install "remagent[claude]"
@@ -121,13 +126,30 @@ pip install "remagent[firestore]"
 
 Or from source: `git clone https://github.com/Johnv412/rem-agent-.git && cd rem-agent- && pip install -e ".[claude]"`
 
-Set your Gemini API key:
+### Choose an LLM provider — four keys, pick one
+
+Dream consolidation needs exactly one API key. Export the one you have:
 
 ```bash
-export GEMINI_API_KEY="your-gemini-api-key"
+export ANTHROPIC_API_KEY="..."   # Anthropic Claude        (pip install "remagent[anthropic]")
+export OPENAI_API_KEY="..."      # OpenAI                  (pip install "remagent[openai]")
+export XAI_API_KEY="..."         # xAI Grok                (pip install "remagent[openai]")
+export GEMINI_API_KEY="..."      # Google Gemini           (included in the base install)
 ```
 
-> **Provider note:** consolidation currently runs on Gemini. The synthesizer is built as an adapter; additional providers (Claude, OpenAI-compatible endpoints) are on the roadmap. Contributions welcome.
+With no `REMAGENT_PROVIDER` set, RemAgent auto-detects the first key present in this order: `ANTHROPIC_API_KEY` → `OPENAI_API_KEY` → `XAI_API_KEY` → `GEMINI_API_KEY`.
+
+| Variable | Purpose |
+|---|---|
+| `REMAGENT_PROVIDER` | Force a provider: `gemini`, `anthropic`, `openai`, or `xai`. Overrides auto-detection. |
+| `REMAGENT_MODEL` | Override the selected provider's default model (e.g. `claude-sonnet-5`, `gpt-5.5`, `grok-4.5`, `gemini-2.5-pro`). |
+| `OPENAI_BASE_URL` | Point the `openai` provider at any OpenAI-compatible server (Ollama, vLLM, LM Studio, a proxy). Applies to `openai` only — `xai` is always `https://api.x.ai/v1`. |
+
+Default models: Gemini `gemini-2.5-flash`, Anthropic `claude-opus-5`, OpenAI `gpt-6-astra`, xAI `grok-4.6`.
+
+xAI is not a separate backend: it is the OpenAI-compatible backend with `XAI_API_KEY` and the xAI base URL, so it needs the `[openai]` extra and nothing else.
+
+Every provider receives the same consolidation prompt and goes through the same parser, so the supersession invariant (old fact inactive with a `superseded_by` pointer to the new active fact) is enforced identically. If a provider's response cannot be parsed, the dream fails loudly naming the provider and writes nothing. `remagent doctor` reports the active provider, which keys are present (names only), and whether that provider's SDK is installed.
 
 ## 🚀 Quickstart (Python 3.11+)
 
@@ -309,7 +331,7 @@ The repo contains a web dashboard (Vite + React + Express, `npm run dev`) that v
 ## 🗺️ Roadmap
 
 - [x] PyPI release (`pip install remagent`)
-- [ ] Additional LLM providers for the synthesizer (Claude, OpenAI-compatible)
+- [x] Additional LLM providers for the synthesizer (Anthropic, OpenAI-compatible, xAI)
 - [ ] Global (machine-wide) Claude Code hook install as a first-class command
 - [ ] Team-shared memory stores with per-agent namespaces
 - [ ] Reproducible benchmark suite for pruning and recall quality
@@ -318,6 +340,8 @@ The repo contains a web dashboard (Vite + React + Express, `npm run dev`) that v
 
 Built by **John Vincent** ([@Johnv412](https://github.com/Johnv412)) — JV.AI Systems. I build production AI voice and automation systems for service businesses; RemAgent is the memory layer extracted from that work. Issues and PRs welcome.
 
+Built with Claude Code.
+
 ## 📄 License
 
-Apache-2.0. Built with Google Gemini for the next generation of autonomous AI systems.
+Apache-2.0.
