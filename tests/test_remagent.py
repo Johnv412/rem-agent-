@@ -5,6 +5,8 @@ Covers Schemas, SQLite Storage, Governor, Decay, and Daemon Logic.
 
 import asyncio
 import os
+import sqlite3
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -276,6 +278,79 @@ class TestRemAgentSuite(unittest.IsolatedAsyncioTestCase):
         proc = self._run_decay_cli("ghost_agent")
         self.assertEqual(proc.returncode, 1)
         self.assertIn("FAILED", proc.stderr)
+
+
+class TestLogContentFile(unittest.IsolatedAsyncioTestCase):
+    """`remagent log --content-file` — the path Hermes/agent hooks use to send a
+    transcript that would blow past the OS argument-length limit."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.db = os.path.join(self.dir, "log.db")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _log(self, *args, stdin=None):
+        argv = ["remagent", "log", "--role", "user", "--db", self.db, *args]
+        return subprocess.run(
+            [sys.executable, "-c",
+             f"import sys; sys.argv = {argv!r}; from remagent.cli import main; main()"],
+            capture_output=True, text=True, timeout=60, input=stdin,
+        )
+
+    def _contents(self):
+        con = sqlite3.connect(self.db)
+        try:
+            return [r[0] for r in con.execute("SELECT content FROM raw_turns ORDER BY rowid")]
+        finally:
+            con.close()
+
+    def test_content_file_from_disk(self):
+        path = os.path.join(self.dir, "turn.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("vendor price is $40/unit\nsecond line")
+        proc = self._log("--content-file", path)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        self.assertEqual(self._contents(), ["vendor price is $40/unit\nsecond line"])
+
+    def test_content_file_stdin_accepts_payload_too_long_for_argv(self):
+        # 400 KB: comfortably past what a single argv entry can carry on macOS.
+        big = "x" * 400_000
+        proc = self._log("--content-file", "-", stdin=big)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        stored = self._contents()
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(len(stored[0]), 400_000)
+
+    def test_content_flag_still_works(self):
+        proc = self._log("--content", "plain path unchanged")
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        self.assertEqual(self._contents(), ["plain path unchanged"])
+
+    def test_content_and_content_file_are_mutually_exclusive(self):
+        proc = self._log("--content", "a", "--content-file", "-", stdin="b")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("not allowed with", proc.stderr)
+        self.assertFalse(os.path.exists(self.db), "rejected args must not create the DB")
+
+    def test_one_of_the_two_is_required(self):
+        proc = self._log()
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("required", proc.stderr)
+
+    def test_empty_stdin_is_a_noop_not_a_failure(self):
+        # A hook firing on a session with nothing to say must not report failure.
+        proc = self._log("--content-file", "-", stdin="   \n  ")
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        self.assertEqual(self._contents(), [])
+
+    def test_missing_content_file_fails_loudly_and_logs_nothing(self):
+        proc = self._log("--content-file", os.path.join(self.dir, "absent.txt"))
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("FAILED", proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertEqual(self._contents(), [])
 
 
 if __name__ == "__main__":

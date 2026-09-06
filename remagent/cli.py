@@ -69,7 +69,13 @@ async def run_cli():
     # Command: log
     log_parser = subparsers.add_parser("log", help="Append a raw interaction turn into the memory buffer")
     log_parser.add_argument("--role", choices=["user", "assistant", "system", "tool"], required=True, help="Turn role")
-    log_parser.add_argument("--content", required=True, help="Turn message content")
+    log_content = log_parser.add_mutually_exclusive_group(required=True)
+    log_content.add_argument("--content", help="Turn message content")
+    log_content.add_argument(
+        "--content-file",
+        help="Read turn content from a file, or '-' for stdin. Use this instead of "
+             "--content for long transcripts, which can exceed the OS argument limit.",
+    )
     log_parser.add_argument("--session", default="default_session", help="Session ID")
     log_parser.add_argument("--db", default=_default_db(), help="SQLite database path (env: REMAGENT_DB)")
 
@@ -310,7 +316,27 @@ async def run_cli():
             print(f"   - Active facts remaining: {active_count}")
 
         elif args.command == "log":
-            turn = RawTurnLog(session_id=args.session, role=args.role, content=args.content)
+            if args.content_file:
+                try:
+                    if args.content_file == "-":
+                        content = sys.stdin.read()
+                    else:
+                        with open(os.path.expanduser(args.content_file), "r", encoding="utf-8") as fh:
+                            content = fh.read()
+                except OSError as exc:
+                    print(f"❌ FAILED: cannot read --content-file: {exc}", file=sys.stderr)
+                    print("   Nothing was logged.", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                content = args.content
+
+            # An empty turn is a no-op, not an error: hooks that fire on a
+            # session with nothing to say must not report failure.
+            if not content.strip():
+                print("💤 Nothing to log: content was empty.")
+                return
+
+            turn = RawTurnLog(session_id=args.session, role=args.role, content=content)
             await storage.save_turn(turn)
             print(f"📥 Logged raw turn {turn.turn_id} to buffer.")
     finally:
